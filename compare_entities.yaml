@@ -49,11 +49,11 @@ blueprint:
       default: "Entity Comparison Alert"
     notification_message:
       name: Notification Message
-      description: "Use {entity_one}, {entity_two}, {value_one}, {value_two} as placeholders"
+      description: "Use {entity_one}, {entity_two}, {value_one}, {value_two}, {comparison} as placeholders"
       selector:
         text:
           multiline: true
-      default: "{entity_one} ({value_one}) is {comparison} {entity_two} ({value_two})"
+      default: "{entity_one} ({value_one}) {comparison} {entity_two} ({value_two})"
     enable_time_condition:
       name: Enable Time Condition
       description: Only send notifications during a specific time window
@@ -99,22 +99,12 @@ blueprint:
             - label: "Sunday"
               value: "sun"
           multiple: true
-      default: ["mon", "tue", "wed", "thu", "fri"]
-    enable_throttle:
-      name: Enable Notification Throttle
-      description: Prevent spamming by throttling notifications
-      selector:
-        boolean:
-      default: false
-    throttle_minutes:
-      name: Throttle Duration (minutes)
-      description: Minimum minutes between notifications
-      selector:
-        number:
-          min: 1
-          max: 1440
-          unit_of_measurement: "minutes"
-      default: 15
+      default:
+        - "mon"
+        - "tue"
+        - "wed"
+        - "thu"
+        - "fri"
     enable_value_threshold:
       name: Enable Value Threshold
       description: Only notify if a numeric value meets a threshold
@@ -160,26 +150,30 @@ condition:
   # Main comparison condition
   - condition: template
     value_template: >
-      {% set val1 = states(entity_one) | float(none) %}
-      {% set val2 = states(entity_two) | float(none) %}
+      {% set val1 = states(entity_one_input) | float(none) %}
+      {% set val2 = states(entity_two_input) | float(none) %}
+      {% set comp = comparison_input %}
       {% if val1 is none or val2 is none %}
         false
-      {% elif comparison == 'greater_than' %}
+      {% elif comp == 'greater_than' %}
         {{ val1 > val2 }}
-      {% elif comparison == 'less_than' %}
+      {% elif comp == 'less_than' %}
         {{ val1 < val2 }}
-      {% elif comparison == 'equal_to' %}
+      {% elif comp == 'equal_to' %}
         {{ val1 == val2 }}
-      {% elif comparison == 'greater_than_or_equal' %}
+      {% elif comp == 'greater_than_or_equal' %}
         {{ val1 >= val2 }}
-      {% elif comparison == 'less_than_or_equal' %}
+      {% elif comp == 'less_than_or_equal' %}
         {{ val1 <= val2 }}
-      {% elif comparison == 'not_equal' %}
+      {% elif comp == 'not_equal' %}
         {{ val1 != val2 }}
       {% else %}
         false
       {% endif %}
-    enabled: true
+    vars:
+      entity_one_input: !input entity_one
+      entity_two_input: !input entity_two
+      comparison_input: !input comparison_operator
   
   # Time condition (optional)
   - condition: time
@@ -190,63 +184,71 @@ condition:
   # Day condition (optional)
   - condition: template
     value_template: >
-      {% if not enable_day_condition %}
+      {% set enable_day = enable_day_check %}
+      {% set days = weekdays_list %}
+      {% if not enable_day %}
         true
       {% else %}
-        {{ now().strftime('%a').lower()[:3] in weekdays }}
+        {% set day_name = now().strftime('%a').lower()[:3] %}
+        {{ day_name in days }}
       {% endif %}
+    vars:
+      enable_day_check: !input enable_day_condition
+      weekdays_list: !input weekdays
     enabled: true
   
   # Value threshold condition (optional)
   - condition: template
     value_template: >
-      {% if not enable_value_threshold or threshold_entity == '' %}
+      {% set enable_thresh = enable_threshold_check %}
+      {% set thresh_entity = threshold_entity_input %}
+      {% if not enable_thresh or thresh_entity == '' %}
         true
       {% else %}
-        {% set thresh_val = states(threshold_entity) | float(none) %}
+        {% set thresh_val = states(thresh_entity) | float(none) %}
+        {% set thresh_op = threshold_operator_input %}
         {% if thresh_val is none %}
           false
-        {% elif threshold_operator == 'gt' %}
-          {{ thresh_val > threshold_value }}
-        {% elif threshold_operator == 'lt' %}
-          {{ thresh_val < threshold_value }}
-        {% elif threshold_operator == 'eq' %}
-          {{ thresh_val == threshold_value }}
+        {% elif thresh_op == 'gt' %}
+          {{ thresh_val > threshold_value_input }}
+        {% elif thresh_op == 'lt' %}
+          {{ thresh_val < threshold_value_input }}
+        {% elif thresh_op == 'eq' %}
+          {{ thresh_val == threshold_value_input }}
         {% else %}
           false
         {% endif %}
       {% endif %}
+    vars:
+      enable_threshold_check: !input enable_value_threshold
+      threshold_entity_input: !input threshold_entity
+      threshold_operator_input: !input threshold_operator
+      threshold_value_input: !input threshold_value
     enabled: true
 
 action:
-  # Throttle check (store last notification time)
-  - condition: template
-    value_template: >
-      {% if not enable_throttle %}
-        true
-      {% else %}
-        {% set last_notification = state_attr('automation.compare_entities_with_device_notifications', 'last_triggered') %}
-        {{ (last_notification is none) or ((now() - last_notification).total_seconds() > (throttle_minutes * 60)) }}
-      {% endif %}
-    enabled: true
-  
-  # Send notification
   - service: notify.send_message
     target: !input target_devices
     data:
       title: !input notification_title
       message: >
-        {% set entity_one_id = entity_one | default('unknown') %}
-        {% set entity_two_id = entity_two | default('unknown') %}
-        {% set val1 = states(entity_one) | default('N/A') %}
-        {% set val2 = states(entity_two) | default('N/A') %}
+        {% set entity_one_id = entity_one_var %}
+        {% set entity_two_id = entity_two_var %}
+        {% set val1 = states(entity_one_var) | default('N/A') %}
+        {% set val2 = states(entity_two_var) | default('N/A') %}
+        {% set comp = comparison_var %}
         {% set op_map = {
           'greater_than': 'is greater than',
           'less_than': 'is less than',
           'equal_to': 'equals',
-          'greater_than_or_equal': 'is greater than or equal to',
-          'less_than_or_equal': 'is less than or equal to',
+          'greater_than_or_equal': 'is >= ',
+          'less_than_or_equal': 'is <= ',
           'not_equal': 'is not equal to'
         } %}
-        {% set comp_text = op_map[comparison] %}
-        {{ message | replace('{entity_one}', entity_one_id) | replace('{entity_two}', entity_two_id) | replace('{value_one}', val1 | string) | replace('{value_two}', val2 | string) | replace('{comparison}', comp_text) }}
+        {% set comp_text = op_map.get(comp, 'compared to') %}
+        {{ (notification_msg | replace('{entity_one}', entity_one_id) | replace('{entity_two}', entity_two_id) | replace('{value_one}', val1 | string) | replace('{value_two}', val2 | string) | replace('{comparison}', comp_text)) }}
+    vars:
+      entity_one_var: !input entity_one
+      entity_two_var: !input entity_two
+      comparison_var: !input comparison_operator
+      notification_msg: !input notification_message
