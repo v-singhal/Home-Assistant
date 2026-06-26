@@ -1,0 +1,97 @@
+blueprint:
+  name: Compare Two Entities and Notify
+  description: Compare two numeric entities and send a notification when a condition is met
+  domain: automation
+  input:
+    entity_one:
+      name: First Entity
+      description: The first entity to compare
+      selector:
+        entity:
+          domain: sensor
+    entity_two:
+      name: Second Entity
+      description: The second entity to compare
+      selector:
+        entity:
+          domain: sensor
+    comparison_operator:
+      name: Comparison Operator
+      description: How to compare the entities
+      selector:
+        select:
+          options:
+            - "greater_than"
+            - "less_than"
+            - "equal_to"
+            - "greater_than_or_equal"
+            - "less_than_or_equal"
+            - "not_equal"
+      default: "greater_than"
+    notification_title:
+      name: Notification Title
+      description: The title of the notification
+      selector:
+        text:
+      default: "Entity Comparison Alert"
+    notification_message:
+      name: Notification Message
+      description: The message to send (use {{ entity_one }}, {{ entity_two }}, {{ value_one }}, {{ value_two }} for variables)
+      selector:
+        text:
+          multiline: true
+      default: "{{ entity_one }} ({{ value_one }}) is {{ comparison }} {{ entity_two }} ({{ value_two }})"
+    notification_service:
+      name: Notification Service
+      description: The service to use for notifications
+      selector:
+        text:
+      default: "notify.notify"
+
+trigger:
+  - platform: state
+    entity_id: 
+      - !input entity_one
+      - !input entity_two
+
+condition:
+  - condition: template
+    value_template: >
+      {% set entity_one = states(config.input.entity_one) | float(0) %}
+      {% set entity_two = states(config.input.entity_two) | float(0) %}
+      {% set op = config.input.comparison_operator %}
+      {% if op == 'greater_than' %}
+        {{ entity_one > entity_two }}
+      {% elif op == 'less_than' %}
+        {{ entity_one < entity_two }}
+      {% elif op == 'equal_to' %}
+        {{ entity_one == entity_two }}
+      {% elif op == 'greater_than_or_equal' %}
+        {{ entity_one >= entity_two }}
+      {% elif op == 'less_than_or_equal' %}
+        {{ entity_one <= entity_two }}
+      {% elif op == 'not_equal' %}
+        {{ entity_one != entity_two }}
+      {% else %}
+        false
+      {% endif %}
+
+action:
+  - service: !input notification_service
+    data:
+      title: !input notification_title
+      message: >
+        {% set entity_one_name = config.input.entity_one %}
+        {% set entity_two_name = config.input.entity_two %}
+        {% set value_one = states(config.input.entity_one) %}
+        {% set value_two = states(config.input.entity_two) %}
+        {% set op = config.input.comparison_operator %}
+        {% set op_text = {
+          'greater_than': 'is greater than',
+          'less_than': 'is less than',
+          'equal_to': 'equals',
+          'greater_than_or_equal': 'is greater than or equal to',
+          'less_than_or_equal': 'is less than or equal to',
+          'not_equal': 'is not equal to'
+        } %}
+        {{ config.input.notification_message | replace('{{ entity_one }}', entity_one_name) | replace('{{ entity_two }}', entity_two_name) | replace('{{ value_one }}', value_one) | replace('{{ value_two }}', value_two) | replace('{{ comparison }}', op_text[op]) }}
