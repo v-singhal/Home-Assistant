@@ -146,34 +146,80 @@ trigger:
       - !input entity_one
       - !input entity_two
 
-condition:
-  # Main comparison condition
-  - condition: template
-    value_template: >
-      {% set val1 = states(entity_one_input) | float(none) %}
-      {% set val2 = states(entity_two_input) | float(none) %}
-      {% set comp = comparison_input %}
-      {% if val1 is none or val2 is none %}
+variables:
+  entity_one_var: !input entity_one
+  entity_two_var: !input entity_two
+  comparison_var: !input comparison_operator
+  notification_msg: !input notification_message
+  enable_day_var: !input enable_day_condition
+  weekdays_var: !input weekdays
+  enable_threshold_var: !input enable_value_threshold
+  threshold_entity_var: !input threshold_entity
+  threshold_operator_var: !input threshold_operator
+  threshold_value_var: !input threshold_value
+  val1: "{{ states(entity_one_var) | float(none) }}"
+  val2: "{{ states(entity_two_var) | float(none) }}"
+  comparison_check: >
+    {% if val1 is none or val2 is none %}
+      false
+    {% elif comparison_var == 'greater_than' %}
+      {{ val1 > val2 }}
+    {% elif comparison_var == 'less_than' %}
+      {{ val1 < val2 }}
+    {% elif comparison_var == 'equal_to' %}
+      {{ val1 == val2 }}
+    {% elif comparison_var == 'greater_than_or_equal' %}
+      {{ val1 >= val2 }}
+    {% elif comparison_var == 'less_than_or_equal' %}
+      {{ val1 <= val2 }}
+    {% elif comparison_var == 'not_equal' %}
+      {{ val1 != val2 }}
+    {% else %}
+      false
+    {% endif %}
+  day_check: >
+    {% if not enable_day_var %}
+      true
+    {% else %}
+      {{ now().strftime('%a').lower()[:3] in weekdays_var }}
+    {% endif %}
+  threshold_check: >
+    {% if not enable_threshold_var or threshold_entity_var == '' %}
+      true
+    {% else %}
+      {% set thresh_val = states(threshold_entity_var) | float(none) %}
+      {% if thresh_val is none %}
         false
-      {% elif comp == 'greater_than' %}
-        {{ val1 > val2 }}
-      {% elif comp == 'less_than' %}
-        {{ val1 < val2 }}
-      {% elif comp == 'equal_to' %}
-        {{ val1 == val2 }}
-      {% elif comp == 'greater_than_or_equal' %}
-        {{ val1 >= val2 }}
-      {% elif comp == 'less_than_or_equal' %}
-        {{ val1 <= val2 }}
-      {% elif comp == 'not_equal' %}
-        {{ val1 != val2 }}
+      {% elif threshold_operator_var == 'gt' %}
+        {{ thresh_val > threshold_value_var }}
+      {% elif threshold_operator_var == 'lt' %}
+        {{ thresh_val < threshold_value_var }}
+      {% elif threshold_operator_var == 'eq' %}
+        {{ thresh_val == threshold_value_var }}
       {% else %}
         false
       {% endif %}
-    vars:
-      entity_one_input: !input entity_one
-      entity_two_input: !input entity_two
-      comparison_input: !input comparison_operator
+    {% endif %}
+  op_map:
+    greater_than: "is greater than"
+    less_than: "is less than"
+    equal_to: "equals"
+    greater_than_or_equal: "is >= "
+    less_than_or_equal: "is <= "
+    not_equal: "is not equal to"
+  comparison_text: "{{ op_map[comparison_var] }}"
+  final_message: >
+    {{ notification_msg 
+      | replace('{entity_one}', entity_one_var) 
+      | replace('{entity_two}', entity_two_var) 
+      | replace('{value_one}', val1 | default('N/A') | string) 
+      | replace('{value_two}', val2 | default('N/A') | string) 
+      | replace('{comparison}', comparison_text) }}
+
+condition:
+  # Main comparison condition
+  - condition: template
+    value_template: "{{ comparison_check | bool(false) }}"
   
   # Time condition (optional)
   - condition: time
@@ -183,72 +229,15 @@ condition:
   
   # Day condition (optional)
   - condition: template
-    value_template: >
-      {% set enable_day = enable_day_check %}
-      {% set days = weekdays_list %}
-      {% if not enable_day %}
-        true
-      {% else %}
-        {% set day_name = now().strftime('%a').lower()[:3] %}
-        {{ day_name in days }}
-      {% endif %}
-    vars:
-      enable_day_check: !input enable_day_condition
-      weekdays_list: !input weekdays
-    enabled: true
+    value_template: "{{ day_check | bool(true) }}"
   
   # Value threshold condition (optional)
   - condition: template
-    value_template: >
-      {% set enable_thresh = enable_threshold_check %}
-      {% set thresh_entity = threshold_entity_input %}
-      {% if not enable_thresh or thresh_entity == '' %}
-        true
-      {% else %}
-        {% set thresh_val = states(thresh_entity) | float(none) %}
-        {% set thresh_op = threshold_operator_input %}
-        {% if thresh_val is none %}
-          false
-        {% elif thresh_op == 'gt' %}
-          {{ thresh_val > threshold_value_input }}
-        {% elif thresh_op == 'lt' %}
-          {{ thresh_val < threshold_value_input }}
-        {% elif thresh_op == 'eq' %}
-          {{ thresh_val == threshold_value_input }}
-        {% else %}
-          false
-        {% endif %}
-      {% endif %}
-    vars:
-      enable_threshold_check: !input enable_value_threshold
-      threshold_entity_input: !input threshold_entity
-      threshold_operator_input: !input threshold_operator
-      threshold_value_input: !input threshold_value
-    enabled: true
+    value_template: "{{ threshold_check | bool(true) }}"
 
 action:
   - service: notify.send_message
     target: !input target_devices
     data:
       title: !input notification_title
-      message: >
-        {% set entity_one_id = entity_one_var %}
-        {% set entity_two_id = entity_two_var %}
-        {% set val1 = states(entity_one_var) | default('N/A') %}
-        {% set val2 = states(entity_two_var) | default('N/A') %}
-        {% set comp = comparison_var %}
-        {% set op_map = {
-          'greater_than': 'is greater than',
-          'less_than': 'is less than',
-          'equal_to': 'equals',
-          'greater_than_or_equal': 'is >= ',
-          'less_than_or_equal': 'is <= ',
-          'not_equal': 'is not equal to'
-        } %}
-        {% set comp_text = op_map.get(comp, 'compared to') %}
-        {{ (notification_msg | replace('{entity_one}', entity_one_id) | replace('{entity_two}', entity_two_id) | replace('{value_one}', val1 | string) | replace('{value_two}', val2 | string) | replace('{comparison}', comp_text)) }}
-    vars:
-      entity_one_var: !input entity_one
-      entity_two_var: !input entity_two
-      comparison_var: !input comparison_operator
-      notification_msg: !input notification_message
+      message: "{{ final_message }}"
