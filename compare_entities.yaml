@@ -1,144 +1,119 @@
 blueprint:
-  name: Compare Entities with Device Notifications
-  description: Compare two entities and send push notifications to devices based on customizable criteria
+  name: Compare Two Entities and Notify on Condition Change
+  description: Compares two numeric entities and sends a push notification when the comparison condition changes (true→false or false→true)
   domain: automation
   input:
     entity_one:
       name: First Entity
-      description: The first entity to compare
+      description: The first numeric entity to compare
       selector:
         entity:
           domain: sensor
     entity_two:
       name: Second Entity
-      description: The second entity to compare
+      description: The second numeric entity to compare
       selector:
         entity:
           domain: sensor
     comparison_operator:
       name: Comparison Operator
-      description: How to compare the entities
+      description: How to compare the two entities
       selector:
         select:
           options:
-            - label: "Greater Than"
-              value: "greater_than"
-            - label: "Less Than"
-              value: "less_than"
-            - label: "Equal To"
-              value: "equal_to"
-            - label: "Greater Than or Equal"
-              value: "greater_than_or_equal"
-            - label: "Less Than or Equal"
-              value: "less_than_or_equal"
-            - label: "Not Equal"
-              value: "not_equal"
-      default: "greater_than"
+            - greater_than
+            - less_than
+            - equal_to
+            - greater_than_or_equal
+            - less_than_or_equal
+            - not_equal
+      default: greater_than
     target_devices:
       name: Target Devices
-      description: Select devices to receive push notifications
+      description: Devices to send the notification to
       selector:
-        target:
-          entity:
-            domain: notify
+        entity:
+          domain: notify
     notification_title:
       name: Notification Title
-      description: The title of the notification
-      selector:
-        text:
-      default: "Entity Comparison Alert"
+      description: Title of the notification
+      default: Condition Alert
     notification_message:
       name: Notification Message
-      description: "Use {entity_one}, {entity_two}, {value_one}, {value_two}, {comparison} as placeholders"
+      description: Message body. Use placeholders {entity_one}, {entity_two}, {value_one}, {value_two}, {comparison}
+      default: "Condition met: {entity_one} {comparison} {entity_two}"
+    condition_history:
+      name: Condition State Helper
+      description: An input_boolean helper to track the previous comparison result
       selector:
-        text:
-          multiline: true
-      default: "{entity_one} ({value_one}) {comparison} {entity_two} ({value_two})"
+        entity:
+          domain: input_boolean
     enable_time_condition:
       name: Enable Time Condition
-      description: Only send notifications during a specific time window
+      description: Only send notification within a specific time range
       selector:
         boolean:
       default: false
     time_after:
       name: Time After
-      description: Start time for notifications
+      description: Start time for the notification window
       selector:
         time:
-      default: "08:00:00"
+      default: "00:00:00"
     time_before:
       name: Time Before
-      description: End time for notifications
+      description: End time for the notification window
       selector:
         time:
-      default: "23:00:00"
+      default: "23:59:59"
     enable_day_condition:
       name: Enable Day Condition
-      description: Only send notifications on specific days
+      description: Only send notification on specific weekdays
       selector:
         boolean:
       default: false
     weekdays:
-      name: Days of Week
+      name: Weekdays
       description: Select which days to send notifications
       selector:
         select:
           options:
-            - label: "Monday"
-              value: "mon"
-            - label: "Tuesday"
-              value: "tue"
-            - label: "Wednesday"
-              value: "wed"
-            - label: "Thursday"
-              value: "thu"
-            - label: "Friday"
-              value: "fri"
-            - label: "Saturday"
-              value: "sat"
-            - label: "Sunday"
-              value: "sun"
+            - monday
+            - tuesday
+            - wednesday
+            - thursday
+            - friday
+            - saturday
+            - sunday
           multiple: true
-      default:
-        - "mon"
-        - "tue"
-        - "wed"
-        - "thu"
-        - "fri"
+      default: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
     enable_value_threshold:
       name: Enable Value Threshold
-      description: Only notify if a numeric value meets a threshold
+      description: Add an additional condition on a third entity value
       selector:
         boolean:
       default: false
     threshold_entity:
       name: Threshold Entity
-      description: Entity to check against threshold
+      description: Entity to check for threshold condition
       selector:
         entity:
+          domain: sensor
       default: ""
     threshold_operator:
       name: Threshold Operator
-      description: Comparison for threshold check
+      description: How to compare threshold entity
       selector:
         select:
           options:
-            - label: "Greater Than"
-              value: "gt"
-            - label: "Less Than"
-              value: "lt"
-            - label: "Equal To"
-              value: "eq"
-      default: "gt"
+            - gt
+            - lt
+            - eq
+      default: gt
     threshold_value:
       name: Threshold Value
-      description: Numeric value to compare against
-      selector:
-        number:
-          min: -9999
-          max: 9999
-          step: 0.1
-      default: 0
+      description: Value to compare threshold entity against
+      default: "0"
 
 trigger:
   - platform: state
@@ -147,97 +122,110 @@ trigger:
       - !input entity_two
 
 variables:
-  entity_one_var: !input entity_one
-  entity_two_var: !input entity_two
-  comparison_var: !input comparison_operator
-  notification_msg: !input notification_message
-  enable_day_var: !input enable_day_condition
-  weekdays_var: !input weekdays
-  enable_threshold_var: !input enable_value_threshold
-  threshold_entity_var: !input threshold_entity
-  threshold_operator_var: !input threshold_operator
-  threshold_value_var: !input threshold_value
-  val1: "{{ states(entity_one_var) | float(none) }}"
-  val2: "{{ states(entity_two_var) | float(none) }}"
-  comparison_check: >
-    {% if val1 is none or val2 is none %}
-      false
-    {% elif comparison_var == 'greater_than' %}
-      {{ val1 > val2 }}
-    {% elif comparison_var == 'less_than' %}
-      {{ val1 < val2 }}
-    {% elif comparison_var == 'equal_to' %}
-      {{ val1 == val2 }}
-    {% elif comparison_var == 'greater_than_or_equal' %}
-      {{ val1 >= val2 }}
-    {% elif comparison_var == 'less_than_or_equal' %}
-      {{ val1 <= val2 }}
-    {% elif comparison_var == 'not_equal' %}
-      {{ val1 != val2 }}
-    {% else %}
-      false
+  val1: "{{ states(config.entity_one) | float(0) }}"
+  val2: "{{ states(config.entity_two) | float(0) }}"
+  
+  # Comparison logic
+  comparison_result: >
+    {% set op = config.comparison_operator %}
+    {% if op == 'greater_than' %}{{ val1 > val2 }}
+    {% elif op == 'less_than' %}{{ val1 < val2 }}
+    {% elif op == 'equal_to' %}{{ val1 == val2 }}
+    {% elif op == 'greater_than_or_equal' %}{{ val1 >= val2 }}
+    {% elif op == 'less_than_or_equal' %}{{ val1 <= val2 }}
+    {% elif op == 'not_equal' %}{{ val1 != val2 }}
     {% endif %}
-  day_check: >
-    {% if not enable_day_var %}
-      true
-    {% else %}
-      {{ now().strftime('%a').lower()[:3] in weekdays_var }}
+  
+  comparison_name: >
+    {% set op = config.comparison_operator %}
+    {% if op == 'greater_than' %}>
+    {% elif op == 'less_than' %}<
+    {% elif op == 'equal_to' %}==
+    {% elif op == 'greater_than_or_equal' %}>=
+    {% elif op == 'less_than_or_equal' %}<=
+    {% elif op == 'not_equal' %}!=
     {% endif %}
-  threshold_check: >
-    {% if not enable_threshold_var or threshold_entity_var == '' %}
-      true
-    {% else %}
-      {% set thresh_val = states(threshold_entity_var) | float(none) %}
-      {% if thresh_val is none %}
-        false
-      {% elif threshold_operator_var == 'gt' %}
-        {{ thresh_val > threshold_value_var }}
-      {% elif threshold_operator_var == 'lt' %}
-        {{ thresh_val < threshold_value_var }}
-      {% elif threshold_operator_var == 'eq' %}
-        {{ thresh_val == threshold_value_var }}
-      {% else %}
-        false
+  
+  # Previous condition state
+  prev_condition_met: "{{ states(config.condition_history) == 'on' }}"
+  
+  # Condition changed
+  condition_changed: "{{ comparison_result != prev_condition_met }}"
+  
+  # Time condition check
+  time_condition_met: >
+    {% if config.enable_time_condition %}
+      {{ now().time() >= strptime(config.time_after, '%H:%M:%S').time() and 
+         now().time() <= strptime(config.time_before, '%H:%M:%S').time() }}
+    {% else %}true{% endif %}
+  
+  # Day condition check
+  day_condition_met: >
+    {% if config.enable_day_condition %}
+      {{ now().strftime('%A').lower() in config.weekdays }}
+    {% else %}true{% endif %}
+  
+  # Threshold condition check
+  threshold_condition_met: >
+    {% if config.enable_value_threshold and config.threshold_entity != '' %}
+      {% set thresh_val = states(config.threshold_entity) | float(0) %}
+      {% set thresh_num = config.threshold_value | float(0) %}
+      {% set op = config.threshold_operator %}
+      {% if op == 'gt' %}{{ thresh_val > thresh_num }}
+      {% elif op == 'lt' %}{{ thresh_val < thresh_num }}
+      {% elif op == 'eq' %}{{ thresh_val == thresh_num }}
       {% endif %}
-    {% endif %}
-  op_map:
-    greater_than: "is greater than"
-    less_than: "is less than"
-    equal_to: "equals"
-    greater_than_or_equal: "is >= "
-    less_than_or_equal: "is <= "
-    not_equal: "is not equal to"
-  comparison_text: "{{ op_map[comparison_var] }}"
-  final_message: >
-    {{ notification_msg 
-      | replace('{entity_one}', entity_one_var) 
-      | replace('{entity_two}', entity_two_var) 
-      | replace('{value_one}', val1 | default('N/A') | string) 
-      | replace('{value_two}', val2 | default('N/A') | string) 
-      | replace('{comparison}', comparison_text) }}
+    {% else %}true{% endif %}
+  
+  # Format notification message
+  message: >
+    {{ config.notification_message
+      | replace('{entity_one}', config.entity_one)
+      | replace('{entity_two}', config.entity_two)
+      | replace('{value_one}', val1 | string)
+      | replace('{value_two}', val2 | string)
+      | replace('{comparison}', comparison_name)
+    }}
 
 condition:
-  # Main comparison condition
+  # Check for valid numeric values
   - condition: template
-    value_template: "{{ comparison_check | bool(false) }}"
+    value_template: >
+      {{ states(config.entity_one) not in ['unknown', 'unavailable', 'none', ''] and
+         states(config.entity_two) not in ['unknown', 'unavailable', 'none', ''] }}
   
-  # Time condition (optional)
-  - condition: time
-    after: !input time_after
-    before: !input time_before
-    enabled: !input enable_time_condition
-  
-  # Day condition (optional)
+  # Check if condition changed
   - condition: template
-    value_template: "{{ day_check | bool(true) }}"
+    value_template: "{{ condition_changed }}"
   
-  # Value threshold condition (optional)
+  # Check time condition
   - condition: template
-    value_template: "{{ threshold_check | bool(true) }}"
+    value_template: "{{ time_condition_met }}"
+  
+  # Check day condition
+  - condition: template
+    value_template: "{{ day_condition_met }}"
+  
+  # Check threshold condition
+  - condition: template
+    value_template: "{{ threshold_condition_met }}"
 
 action:
+  # Send notification
   - service: notify.send_message
-    target: !input target_devices
+    target:
+      entity_id: !input target_devices
     data:
       title: !input notification_title
-      message: "{{ final_message }}"
+      message: "{{ message }}"
+  
+  # Update helper with new condition state
+  - if: "{{ comparison_result }}"
+    then:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: !input condition_history
+    else:
+      - service: input_boolean.turn_off
+        target:
+          entity_id: !input condition_history
