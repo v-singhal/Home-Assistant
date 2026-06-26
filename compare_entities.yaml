@@ -1,6 +1,6 @@
 blueprint:
   name: Compare Two Entities and Notify on Condition Change
-  description: Compares two numeric entities and sends a push notification when the comparison condition changes (true→false or false→true)
+  description: Compares two numeric entities and sends a push notification only when the comparison condition changes (true→false or false→true)
   domain: automation
   input:
     entity_one:
@@ -30,12 +30,10 @@ blueprint:
       default: greater_than
     target_devices:
       name: Target Devices
-      description: Select devices to send notifications to (mobile_app devices)
+      description: Devices to send the notification to
       selector:
-        device:
-          filter:
-            - integration: mobile_app
-          multiple: true
+        entity:
+          domain: notify
     notification_title:
       name: Notification Title
       description: Title of the notification
@@ -44,12 +42,6 @@ blueprint:
       name: Notification Message
       description: Message body. Use placeholders {entity_one}, {entity_two}, {value_one}, {value_two}, {comparison}
       default: "Condition met: {entity_one} {comparison} {entity_two}"
-    condition_history:
-      name: Condition State Helper
-      description: An input_boolean helper to track the previous comparison result
-      selector:
-        entity:
-          domain: input_boolean
     enable_time_condition:
       name: Enable Time Condition
       description: Only send notification within a specific time range
@@ -148,12 +140,6 @@ variables:
     {% elif op == 'not_equal' %}!=
     {% endif %}
   
-  # Previous condition state
-  prev_condition_met: "{{ states(config.condition_history) == 'on' }}"
-  
-  # Condition changed
-  condition_changed: "{{ comparison_result != prev_condition_met }}"
-  
   # Time condition check
   time_condition_met: >
     {% if config.enable_time_condition %}
@@ -196,10 +182,6 @@ condition:
       {{ states(config.entity_one) not in ['unknown', 'unavailable', 'none', ''] and
          states(config.entity_two) not in ['unknown', 'unavailable', 'none', ''] }}
   
-  # Check if condition changed
-  - condition: template
-    value_template: "{{ condition_changed }}"
-  
   # Check time condition
   - condition: template
     value_template: "{{ time_condition_met }}"
@@ -213,24 +195,51 @@ condition:
     value_template: "{{ threshold_condition_met }}"
 
 action:
-  # Send notification to each device
-  - alias: "Send notification to each device"
-    repeat:
-      for_each: !input target_devices
-      sequence:
-        - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
-          data:
-            title: !input notification_title
-            message: "{{ message }}"
-          continue_on_error: true
-  
-  # Update helper with new condition state
+  # Send notification only if condition is true
   - if: "{{ comparison_result }}"
     then:
-      - service: input_boolean.turn_on
+      - service: notify.send_message
         target:
-          entity_id: !input condition_history
+          entity_id: !input target_devices
+        data:
+          title: !input notification_title
+          message: "{{ message }}"
+      
+      # Wait for the condition to become false
+      - wait_for_trigger:
+          - trigger: template
+            value_template: >
+              {% set val1 = states(config.entity_one) | float(0) %}
+              {% set val2 = states(config.entity_two) | float(0) %}
+              {% set op = config.comparison_operator %}
+              {% if op == 'greater_than' %}{{ not (val1 > val2) }}
+              {% elif op == 'less_than' %}{{ not (val1 < val2) }}
+              {% elif op == 'equal_to' %}{{ not (val1 == val2) }}
+              {% elif op == 'greater_than_or_equal' %}{{ not (val1 >= val2) }}
+              {% elif op == 'less_than_or_equal' %}{{ not (val1 <= val2) }}
+              {% elif op == 'not_equal' %}{{ not (val1 != val2) }}
+              {% endif %}
+        timeout: "24:00:00"
     else:
-      - service: input_boolean.turn_off
+      # Condition is false, wait for it to become true
+      - wait_for_trigger:
+          - trigger: template
+            value_template: >
+              {% set val1 = states(config.entity_one) | float(0) %}
+              {% set val2 = states(config.entity_two) | float(0) %}
+              {% set op = config.comparison_operator %}
+              {% if op == 'greater_than' %}{{ val1 > val2 }}
+              {% elif op == 'less_than' %}{{ val1 < val2 }}
+              {% elif op == 'equal_to' %}{{ val1 == val2 }}
+              {% elif op == 'greater_than_or_equal' %}{{ val1 >= val2 }}
+              {% elif op == 'less_than_or_equal' %}{{ val1 <= val2 }}
+              {% elif op == 'not_equal' %}{{ val1 != val2 }}
+              {% endif %}
+        timeout: "24:00:00"
+      
+      - service: notify.send_message
         target:
-          entity_id: !input condition_history
+          entity_id: !input target_devices
+        data:
+          title: !input notification_title
+          message: "{{ message }}"
