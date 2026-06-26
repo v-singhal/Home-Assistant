@@ -30,10 +30,12 @@ blueprint:
       default: greater_than
     target_devices:
       name: Target Devices
-      description: Devices to send the notification to
+      description: Select devices to send notifications to (mobile_app devices)
       selector:
-        entity:
-          domain: notify
+        device:
+          filter:
+            - integration: mobile_app
+          multiple: true
     notification_title:
       name: Notification Title
       description: Title of the notification
@@ -211,13 +213,16 @@ condition:
     value_template: "{{ threshold_condition_met }}"
 
 action:
-  # Send notification
-  - service: notify.send_message
-    target:
-      entity_id: !input target_devices
-    data:
-      title: !input notification_title
-      message: "{{ message }}"
+  # Send notification to each device
+  - alias: "Send notification to each device"
+    repeat:
+      for_each: !input target_devices
+      sequence:
+        - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+          data:
+            title: !input notification_title
+            message: "{{ message }}"
+          continue_on_error: true
   
   # Update helper with new condition state
   - if: "{{ comparison_result }}"
