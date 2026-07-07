@@ -12,13 +12,11 @@ input:
       entity:
         filter:
           - device_class: occupancy
-            domain: binary_sensor
           - device_class: motion
-            domain: binary_sensor
   target_entity:
     name: Entity to Control
     selector:
-      target:
+      entity:
   no_motion_wait:
     name: Wait time
     description: Time to leave the entity on after last motion is detected.
@@ -33,23 +31,25 @@ mode: restart
 max_exceeded: silent
 
 trigger:
-  trigger: state
-  entity_id: !input motion_entity
-  from: "off"
-  to: "on"
+  - platform: state
+    entity_id: !input motion_entity
+    from: "off"
+    to: "on"
 
 action:
   - alias: "Turn on the entity"
-    action: homeassistant.turn_on
-    target: !input target_entity
+    service: homeassistant.turn_on
+    target:
+      entity_id: !input target_entity
   - alias: "Wait until there is no motion from device"
     wait_for_trigger:
-      trigger: state
-      entity_id: !input motion_entity
-      from: "on"
-      to: "off"
+      - platform: state
+        entity_id: !input motion_entity
+        from: "on"
+        to: "off"
   - alias: "Wait the number of seconds that has been set"
     delay: !input no_motion_wait
   - alias: "Turn off the entity"
-    action: homeassistant.turn_off
-    target: !input target_entity
+    service: homeassistant.turn_off
+    target:
+      entity_id: !input target_entity
