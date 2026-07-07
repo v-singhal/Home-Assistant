@@ -4,28 +4,29 @@ blueprint:
   domain: automation
   source_url: https://github.com/home-assistant/core/blob/dev/homeassistant/components/automation/blueprints/motion_light.yaml
   author: Home Assistant
-
-input:
-  motion_entity:
-    name: Motion Sensor
-    selector:
-      entity:
-        filter:
-          - device_class: occupancy
-          - device_class: motion
-  target_entity:
-    name: Entity to Control
-    selector:
-      entity:
-  no_motion_wait:
-    name: Wait time
-    description: Time to leave the entity on after last motion is detected.
-    default: 120
-    selector:
-      number:
-        min: 0
-        max: 3600
-        unit_of_measurement: seconds
+  input:
+    motion_entity:
+      name: Motion Sensor
+      selector:
+        entity:
+          filter:
+            - device_class: occupancy
+              domain: binary_sensor
+            - device_class: motion
+              domain: binary_sensor
+    target_entity:
+      name: Entity to Control
+      selector:
+        entity:
+    no_motion_wait:
+      name: Wait time
+      description: Time to leave the entity on after last motion is detected.
+      default: 120
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
 
 mode: restart
 max_exceeded: silent
@@ -47,6 +48,8 @@ action:
         entity_id: !input motion_entity
         from: "on"
         to: "off"
+    timeout: "00:30:00"
+    continue_on_timeout: true
   - alias: "Wait the number of seconds that has been set"
     delay: !input no_motion_wait
   - alias: "Turn off the entity"
