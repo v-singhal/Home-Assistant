@@ -16,7 +16,7 @@ input:
 
   target_entity:
     name: Entity to Control
-    description: Light, fan, or other switchable entity
+    description: Light, fan, switch, climate, or media player
     selector:
       entity:
         filter:
@@ -46,6 +46,7 @@ input:
         min: 0
         max: 3600
         unit_of_measurement: seconds
+        mode: slider
 
 mode: restart
 max_exceeded: silent
@@ -57,36 +58,42 @@ trigger:
     to: "on"
 
 action:
-  - alias: "Turn on the main entity"
+  - alias: Turn on the main entity
     service: homeassistant.turn_on
     target:
       entity_id: !input target_entity
 
-  - alias: "Turn on optional switches"
-    condition: template
-    value_template: "{{ input_optional_switches | length > 0 }}"
-  - service: homeassistant.turn_on
-    target:
-      entity_id: !input optional_switches
+  - alias: Turn on optional switches
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ (optional_switches | default([]) | count) > 0 }}"
+        sequence:
+          - service: homeassistant.turn_on
+            target:
+              entity_id: !input optional_switches
 
-  - alias: "Wait until there is no motion from device"
+  - alias: Wait until there is no motion from device
     wait_for_trigger:
       - platform: state
         entity_id: !input motion_entity
         from: "on"
         to: "off"
 
-  - alias: "Wait the number of seconds that has been set"
+  - alias: Wait the number of seconds that has been set
     delay: !input no_motion_wait
 
-  - alias: "Turn off the main entity"
+  - alias: Turn off the main entity
     service: homeassistant.turn_off
     target:
       entity_id: !input target_entity
 
-  - alias: "Turn off optional switches"
-    condition: template
-    value_template: "{{ input_optional_switches | length > 0 }}"
-  - service: homeassistant.turn_off
-    target:
-      entity_id: !input optional_switches
+  - alias: Turn off optional switches
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ (optional_switches | default([]) | count) > 0 }}"
+        sequence:
+          - service: homeassistant.turn_off
+            target:
+              entity_id: !input optional_switches
