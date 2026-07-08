@@ -1,55 +1,56 @@
 blueprint:
   name: Motion-activated Entity with Optional Switches
-  description: Turn on any entity when motion is detected. Optionally control switches separately.
+  description: Turn on an entity when motion is detected. Optionally control extra switches.
   domain: automation
-  source_url: https://github.com/home-assistant/core/blob/dev/homeassistant/components/automation/blueprints/motion_light.yaml
-  author: Home Assistant
 
-input:
-  motion_entity:
-    name: Motion Sensor
-    selector:
-      entity:
-        filter:
-          - device_class: occupancy
-          - device_class: motion
+  input:
+    motion_entity:
+      name: Motion Sensor
+      selector:
+        entity:
+          filter:
+            - device_class: occupancy
+            - device_class: motion
 
-  target_entity:
-    name: Entity to Control
-    description: Light, fan, switch, climate, or media player
-    selector:
-      entity:
-        filter:
-          - domain:
-              - light
-              - fan
-              - switch
-              - climate
-              - media_player
+    target_entity:
+      name: Entity to Control
+      selector:
+        entity:
+          filter:
+            - domain:
+                - light
+                - fan
+                - switch
+                - climate
+                - media_player
 
-  optional_switches:
-    name: Optional Switches to Control
-    description: Additional switches to toggle (leave empty if none)
-    default: []
-    selector:
-      entity:
-        multiple: true
-        filter:
-          - domain: switch
+    optional_switches:
+      name: Optional Switches
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: switch
 
-  no_motion_wait:
-    name: Wait time
-    description: Time to leave the entity on after last motion is detected.
-    default: 120
-    selector:
-      number:
-        min: 0
-        max: 3600
-        unit_of_measurement: seconds
-        mode: slider
+    no_motion_wait:
+      name: Wait time
+      default: 120
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
+          mode: slider
 
 mode: restart
 max_exceeded: silent
+
+variables:
+  motion_entity: !input motion_entity
+  target_entity: !input target_entity
+  optional_switches: !input optional_switches
+  no_motion_wait: !input no_motion_wait
 
 trigger:
   - platform: state
@@ -58,42 +59,37 @@ trigger:
     to: "on"
 
 action:
-  - alias: Turn on the main entity
-    service: homeassistant.turn_on
+  - service: homeassistant.turn_on
     target:
       entity_id: !input target_entity
 
-  - alias: Turn on optional switches
-    choose:
+  - choose:
       - conditions:
           - condition: template
-            value_template: "{{ (optional_switches | default([]) | count) > 0 }}"
+            value_template: "{{ optional_switches | count > 0 }}"
         sequence:
           - service: homeassistant.turn_on
             target:
-              entity_id: !input optional_switches
+              entity_id: "{{ optional_switches }}"
 
-  - alias: Wait until there is no motion from device
-    wait_for_trigger:
+  - wait_for_trigger:
       - platform: state
         entity_id: !input motion_entity
         from: "on"
         to: "off"
 
-  - alias: Wait the number of seconds that has been set
-    delay: !input no_motion_wait
+  - delay:
+      seconds: !input no_motion_wait
 
-  - alias: Turn off the main entity
-    service: homeassistant.turn_off
+  - service: homeassistant.turn_off
     target:
       entity_id: !input target_entity
 
-  - alias: Turn off optional switches
-    choose:
+  - choose:
       - conditions:
           - condition: template
-            value_template: "{{ (optional_switches | default([]) | count) > 0 }}"
+            value_template: "{{ optional_switches | count > 0 }}"
         sequence:
           - service: homeassistant.turn_off
             target:
-              entity_id: !input optional_switches
+              entity_id: "{{ optional_switches }}"
