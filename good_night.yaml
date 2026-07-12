@@ -1,0 +1,114 @@
+blueprint:
+  name: "🌙 Good Night Mode Controller"
+  description: >
+    # 🌙 Good Night Mode Controller
+    
+    This blueprint acts as the central command for your home's nighttime routine. 
+    
+    ### 📖 How it Works
+    By utilizing an **Input Boolean (Toggle)** helper, you create a dedicated "sleep state" for your home. When toggled **ON**, this automation fires to shut down your house. Because it relies on a helper, your *other* automations can easily check its status (e.g., *"If Good Night Mode is ON, only turn the bathroom light on to 10%"*).
+    
+    ### 🛠️ Setup Instructions
+    1. **Create the Helper**: Go to **Settings > Devices & Services > Helpers** and create a new **Toggle** (Input Boolean). Name it something like *Good Night Mode*.
+    2. **Link the Helper**: Select your new toggle in the `Good Night Helper` input below.
+    3. **Select Your Devices**: Pick which lights and switches to turn off, doors to lock, and blinds to close.
+    4. **Add Custom Actions**: Use the final section for anything extra, like setting the thermostat, arming your security system, or sending a notification.
+    
+    *💡 Tip: Don't forget to create a simple "Good Morning" routine or dashboard button to turn the helper back to OFF when you wake up!*
+
+  domain: automation
+  
+  input:
+    good_night_toggle:
+      name: 🎚️ Good Night Helper
+      description: "Select your Input Boolean (Toggle) helper. The routine starts when this turns ON."
+      selector:
+        entity:
+          domain: input_boolean
+
+    lights_to_off:
+      name: 💡 Lights to Turn Off
+      description: "Select specific lights, groups, or entire areas you want to turn off."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: light
+
+    switches_to_off:
+      name: 🔌 Switches to Turn Off
+      description: "Select switches to turn off (e.g., smart plugs connected to fans, TVs, or appliances)."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: switch
+
+    locks_to_lock:
+      name: 🔒 Doors to Lock
+      description: "Select smart locks you want to automatically secure for the night."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: lock
+
+    covers_to_close:
+      name: 🪟 Blinds / Covers to Close
+      description: "Select any motorized blinds, curtains, or garage doors you want to close."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: cover
+
+    additional_actions:
+      name: ⚙️ Additional Custom Actions
+      description: "Add any extra steps here! Examples: Set climate temperature, arm Alarmo, or play white noise on a smart speaker."
+      default: []
+      selector:
+        action: {}
+
+# Variables to safely check if the user left a target empty
+variables:
+  lights_target: !input lights_to_off
+  switches_target: !input switches_to_off
+  locks_target: !input locks_to_lock
+  covers_target: !input covers_to_close
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: !input good_night_toggle
+    from: "off"
+    to: "on"
+
+action:
+  # 1. Turn off lights
+  - if: "{{ lights_target != {} }}"
+    then:
+      - service: light.turn_off
+        target: !input lights_to_off
+
+  # 2. Turn off switches
+  - if: "{{ switches_target != {} }}"
+    then:
+      - service: switch.turn_off
+        target: !input switches_to_off
+
+  # 3. Lock the doors
+  - if: "{{ locks_target != {} }}"
+    then:
+      - service: lock.lock
+        target: !input locks_to_lock
+
+  # 4. Close the blinds/garage
+  - if: "{{ covers_target != {} }}"
+    then:
+      - service: cover.close_cover
+        target: !input covers_to_close
+
+  # 5. Run user-defined custom actions
+  - choose: []
+    default: !input additional_actions
