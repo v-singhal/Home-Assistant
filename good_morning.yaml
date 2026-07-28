@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 🌅 Good Morning Mode Controller
     
-    This blueprint acts as the central command for your home's morning routine, gently waking up your house and providing a voice greeting.
+    This blueprint acts as the central command for your home's morning routine, gently waking up your house, unlocking doors, and providing a voice greeting.
     
     ### 📖 How it Works
     By utilizing an **Input Boolean (Toggle)** helper, you create a dedicated "wake up state" for your home. When toggled **ON**, this automation fires to wake up your house. Because it uses a standard toggle, you can easily trigger it via **Home Assistant Assist (SST)** simply by saying, *"Turn on Good Morning Mode"*.
@@ -11,7 +11,7 @@ blueprint:
     ### 🛠️ Setup Instructions
     1. **Create the Helper**: Go to **Settings > Devices & Services > Helpers** and create a new **Toggle** (Input Boolean). Name it something like *Good Morning Mode*.
     2. **Link the Helper**: Select your new toggle in the `Good Morning Helper` input below.
-    3. **Select Your Devices**: Pick which lights and switches to turn on, and blinds to open.
+    3. **Select Your Devices**: Pick which lights and switches to turn on, doors to unlock, and blinds to open.
     4. **Configure Voice Greeting (TTS)**: Select your TTS provider (like Piper or Google Translate) and the smart speaker you want to greet you. Leave blank if you wish to skip voice output.
     5. **Add Custom Actions**: Use the final section for anything extra, like disarming your security system, setting the thermostat, or resetting your "Good Night Mode" toggle back to OFF.
     
@@ -42,6 +42,15 @@ blueprint:
         target:
           entity:
             domain: switch
+
+    locks_to_unlock:
+      name: 🔓 Doors to Unlock
+      description: "Select smart locks you want to automatically unlock for the day."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: lock
 
     covers_to_open:
       name: 🪟 Blinds / Covers to Open
@@ -86,6 +95,7 @@ blueprint:
 variables:
   lights_target: !input lights_to_on
   switches_target: !input switches_to_on
+  locks_target: !input locks_to_unlock
   covers_target: !input covers_to_open
   tts_prov: !input tts_provider
   speaker_ent: !input tts_speaker
@@ -111,13 +121,19 @@ action:
       - action: switch.turn_on
         target: !input switches_to_on
 
-  # 3. Open the blinds/covers
+  # 3. Unlock the doors
+  - if: "{{ locks_target != {} }}"
+    then:
+      - action: lock.unlock
+        target: !input locks_to_unlock
+
+  # 4. Open the blinds/covers
   - if: "{{ covers_target != {} }}"
     then:
       - action: cover.open_cover
         target: !input covers_to_open
 
-  # 4. Play Voice Greeting (TTS)
+  # 5. Play Voice Greeting (TTS)
   - if: "{{ tts_prov not in ['', none, 'none'] and speaker_ent not in ['', none, 'none'] }}"
     then:
       - action: tts.speak
@@ -127,6 +143,6 @@ action:
           media_player_entity_id: "{{ speaker_ent }}"
           message: !input greeting_message
 
-  # 5. Run user-defined custom actions
+  # 6. Run user-defined custom actions
   - choose: []
     default: !input additional_actions
