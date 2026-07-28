@@ -3,7 +3,7 @@ blueprint:
   description: >
     # 🌙 Good Night Mode Controller
     
-    This blueprint acts as the central command for your home's nighttime routine. 
+    This blueprint acts as the central command for your home's nighttime routine, shutting down devices and providing a good night voice greeting.
     
     ### 📖 How it Works
     By utilizing an **Input Boolean (Toggle)** helper, you create a dedicated "sleep state" for your home. When toggled **ON**, this automation fires to shut down your house. Because it relies on a helper, your *other* automations can easily check its status (e.g., *"If Good Night Mode is ON, only turn the bathroom light on to 10%"*).
@@ -12,7 +12,8 @@ blueprint:
     1. **Create the Helper**: Go to **Settings > Devices & Services > Helpers** and create a new **Toggle** (Input Boolean). Name it something like *Good Night Mode*.
     2. **Link the Helper**: Select your new toggle in the `Good Night Helper` input below.
     3. **Select Your Devices**: Pick which lights and switches to turn off, doors to lock, and blinds to close.
-    4. **Add Custom Actions**: Use the final section for anything extra, like setting the thermostat, arming your security system, or sending a notification.
+    4. **Configure Voice Greeting (TTS)**: Select your TTS provider (like Piper or Google Translate) and the smart speaker you want to greet you. Leave blank if you wish to skip voice output.
+    5. **Add Custom Actions**: Use the final section for anything extra, like setting the thermostat, arming your security system, or playing white noise.
     
     *💡 Tip: Don't forget to create a simple "Good Morning" routine or dashboard button to turn the helper back to OFF when you wake up!*
 
@@ -20,7 +21,7 @@ blueprint:
   
   input:
     good_night_toggle:
-      name: 🎚️ Good Night Helper
+      name: 🎛️ Good Night Helper
       description: "Select your Input Boolean (Toggle) helper. The routine starts when this turns ON."
       selector:
         entity:
@@ -62,6 +63,30 @@ blueprint:
           entity:
             domain: cover
 
+    tts_provider:
+      name: 🗣️ TTS Provider
+      description: "Select your Text-to-Speech provider entity (e.g., tts.piper, tts.google_en_com). Leave blank to skip the voice greeting."
+      default: ""
+      selector:
+        entity:
+          domain: tts
+
+    tts_speaker:
+      name: 🔊 Smart Speaker for Greeting
+      description: "Select the media player entity that will announce your good night message. Leave blank to skip."
+      default: ""
+      selector:
+        entity:
+          domain: media_player
+
+    greeting_message:
+      name: 💬 Greeting Message
+      description: "The message your smart speaker will say. You can use Jinja templates here to make it dynamic!"
+      default: "Good night! Sleep well."
+      selector:
+        text:
+          multiline: true
+
     additional_actions:
       name: ⚙️ Additional Custom Actions
       description: "Add any extra steps here! Examples: Set climate temperature, arm Alarmo, or play white noise on a smart speaker."
@@ -69,12 +94,13 @@ blueprint:
       selector:
         action: {}
 
-# Variables to safely check if the user left a target empty
 variables:
   lights_target: !input lights_to_off
   switches_target: !input switches_to_off
   locks_target: !input locks_to_lock
   covers_target: !input covers_to_close
+  tts_prov: !input tts_provider
+  speaker_ent: !input tts_speaker
 
 mode: single
 
@@ -88,27 +114,37 @@ action:
   # 1. Turn off lights
   - if: "{{ lights_target != {} }}"
     then:
-      - service: light.turn_off
+      - action: light.turn_off
         target: !input lights_to_off
 
   # 2. Turn off switches
   - if: "{{ switches_target != {} }}"
     then:
-      - service: switch.turn_off
+      - action: switch.turn_off
         target: !input switches_to_off
 
   # 3. Lock the doors
   - if: "{{ locks_target != {} }}"
     then:
-      - service: lock.lock
+      - action: lock.lock
         target: !input locks_to_lock
 
   # 4. Close the blinds/garage
   - if: "{{ covers_target != {} }}"
     then:
-      - service: cover.close_cover
+      - action: cover.close_cover
         target: !input covers_to_close
 
-  # 5. Run user-defined custom actions
+  # 5. Play Voice Greeting (TTS)
+  - if: "{{ tts_prov not in ['', none, 'none'] and speaker_ent not in ['', none, 'none'] }}"
+    then:
+      - action: tts.speak
+        target:
+          entity_id: "{{ tts_prov }}"
+        data:
+          media_player_entity_id: "{{ speaker_ent }}"
+          message: !input greeting_message
+
+  # 6. Run user-defined custom actions
   - choose: []
     default: !input additional_actions
