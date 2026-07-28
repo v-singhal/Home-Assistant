@@ -12,7 +12,7 @@ blueprint:
     1. **Create the Helper**: Go to **Settings > Devices & Services > Helpers** and create a new **Toggle** (Input Boolean). Name it something like *Good Morning Mode*.
     2. **Link the Helper**: Select your new toggle in the `Good Morning Helper` input below.
     3. **Select Your Devices**: Pick which lights and switches to turn on, and blinds to open.
-    4. **Configure Voice Greeting (TTS)**: Select your TTS provider (like Piper or Google Cloud) and the smart speaker you want to greet you. 
+    4. **Configure Voice Greeting (TTS)**: Select your TTS provider (like Piper or Google Translate) and the smart speaker you want to greet you. Leave blank if you wish to skip voice output.
     5. **Add Custom Actions**: Use the final section for anything extra, like disarming your security system, setting the thermostat, or resetting your "Good Night Mode" toggle back to OFF.
     
   domain: automation
@@ -62,7 +62,7 @@ blueprint:
 
     tts_speaker:
       name: 🔊 Smart Speaker for Greeting
-      description: "Select the media player entity that will announce your good morning message."
+      description: "Select the media player entity that will announce your good morning message. Leave blank to skip."
       default: ""
       selector:
         entity:
@@ -83,7 +83,6 @@ blueprint:
       selector:
         action: {}
 
-# Variables to safely check if the user left a target empty
 variables:
   lights_target: !input lights_to_on
   switches_target: !input switches_to_on
@@ -103,29 +102,29 @@ action:
   # 1. Turn on lights
   - if: "{{ lights_target != {} }}"
     then:
-      - service: light.turn_on
+      - action: light.turn_on
         target: !input lights_to_on
 
   # 2. Turn on switches
   - if: "{{ switches_target != {} }}"
     then:
-      - service: switch.turn_on
+      - action: switch.turn_on
         target: !input switches_to_on
 
   # 3. Open the blinds/covers
   - if: "{{ covers_target != {} }}"
     then:
-      - service: cover.open_cover
+      - action: cover.open_cover
         target: !input covers_to_open
 
   # 4. Play Voice Greeting (TTS)
-  - if: "{{ tts_prov != '' and speaker_ent != '' }}"
+  - if: "{{ tts_prov not in ['', none, 'none'] and speaker_ent not in ['', none, 'none'] }}"
     then:
-      - service: tts.speak
+      - action: tts.speak
         target:
-          entity_id: !input tts_provider
+          entity_id: "{{ tts_prov }}"
         data:
-          media_player_entity_id: !input tts_speaker
+          media_player_entity_id: "{{ speaker_ent }}"
           message: !input greeting_message
 
   # 5. Run user-defined custom actions
