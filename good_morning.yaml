@@ -1,0 +1,133 @@
+blueprint:
+  name: "🌅 Good Morning Mode Controller"
+  description: >
+    # 🌅 Good Morning Mode Controller
+    
+    This blueprint acts as the central command for your home's morning routine, gently waking up your house and providing a voice greeting.
+    
+    ### 📖 How it Works
+    By utilizing an **Input Boolean (Toggle)** helper, you create a dedicated "wake up state" for your home. When toggled **ON**, this automation fires to wake up your house. Because it uses a standard toggle, you can easily trigger it via **Home Assistant Assist (SST)** simply by saying, *"Turn on Good Morning Mode"*.
+    
+    ### 🛠️ Setup Instructions
+    1. **Create the Helper**: Go to **Settings > Devices & Services > Helpers** and create a new **Toggle** (Input Boolean). Name it something like *Good Morning Mode*.
+    2. **Link the Helper**: Select your new toggle in the `Good Morning Helper` input below.
+    3. **Select Your Devices**: Pick which lights and switches to turn on, and blinds to open.
+    4. **Configure Voice Greeting (TTS)**: Select your TTS provider (like Piper or Google Cloud) and the smart speaker you want to greet you. 
+    5. **Add Custom Actions**: Use the final section for anything extra, like disarming your security system, setting the thermostat, or resetting your "Good Night Mode" toggle back to OFF.
+    
+  domain: automation
+  
+  input:
+    good_morning_toggle:
+      name: 🌅 Good Morning Helper
+      description: "Select your Input Boolean (Toggle) helper. The routine starts when this turns ON."
+      selector:
+        entity:
+          domain: input_boolean
+
+    lights_to_on:
+      name: 💡 Lights to Turn On
+      description: "Select specific lights, groups, or entire areas you want to turn on."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: light
+
+    switches_to_on:
+      name: 🔌 Switches to Turn On
+      description: "Select switches to turn on (e.g., smart plugs connected to coffee makers or towel warmers)."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: switch
+
+    covers_to_open:
+      name: 🪟 Blinds / Covers to Open
+      description: "Select any motorized blinds, curtains, or shutters you want to open."
+      default: {}
+      selector:
+        target:
+          entity:
+            domain: cover
+
+    tts_provider:
+      name: 🗣️ TTS Provider
+      description: "Select your Text-to-Speech provider entity (e.g., tts.piper, tts.google_en_com). Leave blank to skip the voice greeting."
+      default: ""
+      selector:
+        entity:
+          domain: tts
+
+    tts_speaker:
+      name: 🔊 Smart Speaker for Greeting
+      description: "Select the media player entity that will announce your good morning message."
+      default: ""
+      selector:
+        entity:
+          domain: media_player
+
+    greeting_message:
+      name: 💬 Greeting Message
+      description: "The message your smart speaker will say. You can use Jinja templates here to make it dynamic!"
+      default: "Good morning! I hope you have a wonderful day."
+      selector:
+        text:
+          multiline: true
+
+    additional_actions:
+      name: ⚙️ Additional Custom Actions
+      description: "Add any extra steps here! Examples: Set climate temperature, disarm Alarmo, or reset your Good Night toggle to off."
+      default: []
+      selector:
+        action: {}
+
+# Variables to safely check if the user left a target empty
+variables:
+  lights_target: !input lights_to_on
+  switches_target: !input switches_to_on
+  covers_target: !input covers_to_open
+  tts_prov: !input tts_provider
+  speaker_ent: !input tts_speaker
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: !input good_morning_toggle
+    from: "off"
+    to: "on"
+
+action:
+  # 1. Turn on lights
+  - if: "{{ lights_target != {} }}"
+    then:
+      - service: light.turn_on
+        target: !input lights_to_on
+
+  # 2. Turn on switches
+  - if: "{{ switches_target != {} }}"
+    then:
+      - service: switch.turn_on
+        target: !input switches_to_on
+
+  # 3. Open the blinds/covers
+  - if: "{{ covers_target != {} }}"
+    then:
+      - service: cover.open_cover
+        target: !input covers_to_open
+
+  # 4. Play Voice Greeting (TTS)
+  - if: "{{ tts_prov != '' and speaker_ent != '' }}"
+    then:
+      - service: tts.speak
+        target:
+          entity_id: !input tts_provider
+        data:
+          media_player_entity_id: !input tts_speaker
+          message: !input greeting_message
+
+  # 5. Run user-defined custom actions
+  - choose: []
+    default: !input additional_actions
