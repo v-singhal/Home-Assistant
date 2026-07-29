@@ -1,0 +1,46 @@
+blueprint:
+  name: Calendar Alarm with Spotify
+  description: Plays a specific Spotify playlist when a calendar event starts.
+  domain: automation
+  input:
+    alarm_calendar:
+      name: Alarm Calendar
+      description: The calendar used for your alarms.
+      selector:
+        entity:
+          domain: calendar
+    spotify_player:
+      name: Spotify Media Player
+      description: Your Spotify integration entity (e.g., media_player.spotify).
+      selector:
+        entity:
+          domain: media_player
+    speaker_source:
+      name: Spotify Source Name
+      description: The exact name of your speaker as it appears in Spotify (e.g., "Kitchen Speaker").
+      selector:
+        text: {}
+    playlist_url:
+      name: Spotify Playlist Link
+      description: The URL of the Spotify playlist to play.
+      selector:
+        text: {}
+
+trigger:
+  - platform: calendar
+    event: start
+    entity_id: !input alarm_calendar
+
+action:
+  - action: media_player.select_source
+    target:
+      entity_id: !input spotify_player
+    data:
+      source: !input speaker_source
+  - delay: "00:00:02"
+  - action: media_player.play_media
+    target:
+      entity_id: !input spotify_player
+    data:
+      media_content_id: !input playlist_url
+      media_content_type: playlist
