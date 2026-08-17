@@ -1,0 +1,77 @@
+blueprint:
+  name: Vacuum Error Retry and Dock
+  description: >
+    Retries a robot vacuum once when it encounters an error. If it errors again, it returns to the dock.
+    Note: You must create a Toggle Helper (input_boolean) in Settings > Devices & Services > Helpers to track the retry state.
+  domain: automation
+  input:
+    vacuum_entity:
+      name: Robot Vacuum
+      description: The vacuum entity to monitor and control.
+      selector:
+        entity:
+          domain: vacuum
+    retry_flag:
+      name: Retry Flag (Toggle Helper)
+      description: Select the input_boolean helper you created to act as the memory for the retry sequence.
+      selector:
+        entity:
+          domain: input_boolean
+
+mode: single
+
+trigger:
+  - trigger: state
+    entity_id: !input vacuum_entity
+    to: "error"
+    id: "errored"
+  - trigger: state
+    entity_id: !input vacuum_entity
+    to: "docked"
+    id: "reset"
+  - trigger: state
+    entity_id: !input vacuum_entity
+    to: "returning"
+    id: "reset"
+
+action:
+  - choose:
+      # Scenario A: First Error (Flag is OFF)
+      - conditions:
+          - condition: trigger
+            id: "errored"
+          - condition: state
+            entity_id: !input retry_flag
+            state: "off"
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: !input retry_flag
+          - delay: "00:00:05"
+          - action: vacuum.start
+            target:
+              entity_id: !input vacuum_entity
+              
+      # Scenario B: Second Error (Flag is ON)
+      - conditions:
+          - condition: trigger
+            id: "errored"
+          - condition: state
+            entity_id: !input retry_flag
+            state: "on"
+        sequence:
+          - action: vacuum.return_to_base
+            target:
+              entity_id: !input vacuum_entity
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input retry_flag
+              
+      # Scenario C: Successful Return/Reset
+      - conditions:
+          - condition: trigger
+            id: "reset"
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: !input retry_flag
