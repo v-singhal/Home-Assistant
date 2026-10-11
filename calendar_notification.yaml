@@ -5,7 +5,7 @@ blueprint:
     starts or ends. Optional slots can be disabled. Match comma-separated
     keywords against event titles and descriptions.
   domain: automation
- homeassistant:
+  homeassistant:
     min_version: "2024.6.0"
   input:
     calendar:
