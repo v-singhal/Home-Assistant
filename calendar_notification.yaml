@@ -1,9 +1,9 @@
 blueprint:
-  name: 🗓️ Calendar reminders with multiple offsets
+  name: "🗓️ Calendar reminders"
   description: >
-    Send separate notifications at up to four configurable offsets from
-    calendar event starts or ends. Match optional comma-separated keywords
-    against the event title and description.
+    Send notifications at up to five configurable offsets from calendar event
+    starts or ends. Match optional comma-separated keywords against the event
+    title and description.
   domain: automation
 
   input:
@@ -33,11 +33,6 @@ blueprint:
       selector:
         text:
 
-    slot1_enabled:
-      name: Reminder 1 — enabled
-      default: true
-      selector:
-        boolean:
     slot1_anchor:
       name: Reminder 1 — anchor
       default: start
@@ -58,7 +53,7 @@ blueprint:
         text:
     slot1_title:
       name: Reminder 1 — notification title
-      default: "Formula 1 reminder"
+      default: "Calendar reminder"
       selector:
         text:
     slot1_message:
@@ -91,7 +86,7 @@ blueprint:
         text:
     slot2_title:
       name: Reminder 2 — notification title
-      default: "Formula 1 reminder"
+      default: "Calendar reminder"
       selector:
         text:
     slot2_message:
@@ -124,7 +119,7 @@ blueprint:
         text:
     slot3_title:
       name: Reminder 3 — notification title
-      default: "Formula 1 reminder"
+      default: "Calendar reminder"
       selector:
         text:
     slot3_message:
@@ -157,7 +152,7 @@ blueprint:
         text:
     slot4_title:
       name: Reminder 4 — notification title
-      default: "Formula 1 reminder"
+      default: "Calendar reminder"
       selector:
         text:
     slot4_message:
@@ -167,12 +162,45 @@ blueprint:
         text:
           multiline: true
 
+    slot5_enabled:
+      name: Reminder 5 — enabled
+      default: false
+      selector:
+        boolean:
+    slot5_anchor:
+      name: Reminder 5 — anchor
+      default: start
+      selector:
+        select:
+          options:
+            - label: Event start
+              value: start
+            - label: Event end
+              value: end
+    slot5_offset:
+      name: Reminder 5 — offset
+      description: "Signed HH:MM:SS; negative is before, positive is after the anchor."
+      default: "-00:15:00"
+      selector:
+        text:
+    slot5_title:
+      name: Reminder 5 — notification title
+      default: "Calendar reminder"
+      selector:
+        text:
+    slot5_message:
+      name: Reminder 5 — notification message
+      default: "{{ trigger.calendar_event.summary }}"
+      selector:
+        text:
+          multiline: true
+
 variables:
   keywords: !input keywords
-  slot1_enabled: !input slot1_enabled
   slot2_enabled: !input slot2_enabled
   slot3_enabled: !input slot3_enabled
   slot4_enabled: !input slot4_enabled
+  slot5_enabled: !input slot5_enabled
 
 triggers:
   - trigger: calendar
@@ -199,6 +227,12 @@ triggers:
     offset: !input slot4_offset
     id: reminder_4
 
+  - trigger: calendar
+    entity_id: !input calendar
+    event: !input slot5_anchor
+    offset: !input slot5_offset
+    id: reminder_5
+
 conditions:
   - condition: template
     value_template: >
@@ -219,8 +253,6 @@ actions:
       - conditions:
           - condition: trigger
             id: reminder_1
-          - condition: template
-            value_template: "{{ slot1_enabled }}"
         sequence:
           - action: notify.send_message
             target:
@@ -267,6 +299,19 @@ actions:
             data:
               title: !input slot4_title
               message: !input slot4_message
+
+      - conditions:
+          - condition: trigger
+            id: reminder_5
+          - condition: template
+            value_template: "{{ slot5_enabled }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: !input notify_targets
+            data:
+              title: !input slot5_title
+              message: !input slot5_message
 
 mode: parallel
 max: 10
