@@ -53,10 +53,17 @@ blueprint:
         slot1_offset:
           name: Offset
           description: >
-            Signed HH:MM:SS. Negative is before the anchor; positive is after.
-          default: "-00:15:00"
+            Duration from the anchor. Use the sign control for before or after.
+            Zero fires at the anchor.
+          default:
+            days: 0
+            hours: 0
+            minutes: 0
+            seconds: 0
           selector:
-            text:
+            duration:
+              enable_day: true
+              allow_negative: true
         slot1_title:
           name: Notification title
           default: "Calendar reminder"
@@ -91,10 +98,18 @@ blueprint:
                   value: end
         slot2_offset:
           name: Offset
-          description: "Signed HH:MM:SS: negative is before, positive is after the anchor."
-          default: "-00:15:00"
+          description: >
+            Duration from the anchor. Use the sign control for before or after.
+            Zero fires at the anchor.
+          default:
+            days: 0
+            hours: 0
+            minutes: 0
+            seconds: 0
           selector:
-            text:
+            duration:
+              enable_day: true
+              allow_negative: true
         slot2_title:
           name: Notification title
           default: "Calendar reminder"
@@ -129,10 +144,18 @@ blueprint:
                   value: end
         slot3_offset:
           name: Offset
-          description: "Signed HH:MM:SS: negative is before, positive is after the anchor."
-          default: "-00:15:00"
+          description: >
+            Duration from the anchor. Use the sign control for before or after.
+            Zero fires at the anchor.
+          default:
+            days: 0
+            hours: 0
+            minutes: 0
+            seconds: 0
           selector:
-            text:
+            duration:
+              enable_day: true
+              allow_negative: true
         slot3_title:
           name: Notification title
           default: "Calendar reminder"
@@ -167,10 +190,18 @@ blueprint:
                   value: end
         slot4_offset:
           name: Offset
-          description: "Signed HH:MM:SS: negative is before, positive is after the anchor."
-          default: "-00:15:00"
+          description: >
+            Duration from the anchor. Use the sign control for before or after.
+            Zero fires at the anchor.
+          default:
+            days: 0
+            hours: 0
+            minutes: 0
+            seconds: 0
           selector:
-            text:
+            duration:
+              enable_day: true
+              allow_negative: true
         slot4_title:
           name: Notification title
           default: "Calendar reminder"
@@ -205,10 +236,18 @@ blueprint:
                   value: end
         slot5_offset:
           name: Offset
-          description: "Signed HH:MM:SS: negative is before, positive is after the anchor."
-          default: "-00:15:00"
+          description: >
+            Duration from the anchor. Use the sign control for before or after.
+            Zero fires at the anchor.
+          default:
+            days: 0
+            hours: 0
+            minutes: 0
+            seconds: 0
           selector:
-            text:
+            duration:
+              enable_day: true
+              allow_negative: true
         slot5_title:
           name: Notification title
           default: "Calendar reminder"
