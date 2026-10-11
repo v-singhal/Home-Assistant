@@ -1,5 +1,5 @@
 blueprint:
-  name: F1 calendar reminders with multiple offsets
+  name: 🗓️ Calendar reminders with multiple offsets
   description: >
     Send separate notifications at up to four configurable offsets from
     calendar event starts or ends. Match optional comma-separated keywords
