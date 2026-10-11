@@ -6,7 +6,7 @@ blueprint:
     keywords against event titles and descriptions.
   domain: automation
   homeassistant:
-    min_version: "2024.6.0"
+      min_version: "2024.6.0"
   input:
     calendar:
       name: Calendar
