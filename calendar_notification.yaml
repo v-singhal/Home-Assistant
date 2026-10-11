@@ -1,0 +1,272 @@
+blueprint:
+  name: F1 calendar reminders with multiple offsets
+  description: >
+    Send separate notifications at up to four configurable offsets from
+    calendar event starts or ends. Match optional comma-separated keywords
+    against the event title and description.
+  domain: automation
+
+  input:
+    calendar:
+      name: Calendar
+      description: Select the calendar to monitor.
+      selector:
+        entity:
+          filter:
+            - domain: calendar
+
+    notify_targets:
+      name: Devices to notify
+      description: Select one or more notification entities.
+      selector:
+        entity:
+          filter:
+            - domain: notify
+          multiple: true
+
+    keywords:
+      name: Keywords
+      description: >
+        Comma-separated terms matched against the event title or description.
+        Leave blank to match every event. Matching is case-insensitive.
+      default: ""
+      selector:
+        text:
+
+    slot1_enabled:
+      name: Reminder 1 — enabled
+      default: true
+      selector:
+        boolean:
+    slot1_anchor:
+      name: Reminder 1 — anchor
+      default: start
+      selector:
+        select:
+          options:
+            - label: Event start
+              value: start
+            - label: Event end
+              value: end
+    slot1_offset:
+      name: Reminder 1 — offset
+      description: >
+        Signed HH:MM:SS. Negative is before the anchor; positive is after it.
+        Example: -00:15:00 is 15 minutes before.
+      default: "-00:15:00"
+      selector:
+        text:
+    slot1_title:
+      name: Reminder 1 — notification title
+      default: "Formula 1 reminder"
+      selector:
+        text:
+    slot1_message:
+      name: Reminder 1 — notification message
+      default: "{{ trigger.calendar_event.summary }}"
+      selector:
+        text:
+          multiline: true
+
+    slot2_enabled:
+      name: Reminder 2 — enabled
+      default: false
+      selector:
+        boolean:
+    slot2_anchor:
+      name: Reminder 2 — anchor
+      default: start
+      selector:
+        select:
+          options:
+            - label: Event start
+              value: start
+            - label: Event end
+              value: end
+    slot2_offset:
+      name: Reminder 2 — offset
+      description: "Signed HH:MM:SS; negative is before, positive is after the anchor."
+      default: "-00:15:00"
+      selector:
+        text:
+    slot2_title:
+      name: Reminder 2 — notification title
+      default: "Formula 1 reminder"
+      selector:
+        text:
+    slot2_message:
+      name: Reminder 2 — notification message
+      default: "{{ trigger.calendar_event.summary }}"
+      selector:
+        text:
+          multiline: true
+
+    slot3_enabled:
+      name: Reminder 3 — enabled
+      default: false
+      selector:
+        boolean:
+    slot3_anchor:
+      name: Reminder 3 — anchor
+      default: start
+      selector:
+        select:
+          options:
+            - label: Event start
+              value: start
+            - label: Event end
+              value: end
+    slot3_offset:
+      name: Reminder 3 — offset
+      description: "Signed HH:MM:SS; negative is before, positive is after the anchor."
+      default: "-00:15:00"
+      selector:
+        text:
+    slot3_title:
+      name: Reminder 3 — notification title
+      default: "Formula 1 reminder"
+      selector:
+        text:
+    slot3_message:
+      name: Reminder 3 — notification message
+      default: "{{ trigger.calendar_event.summary }}"
+      selector:
+        text:
+          multiline: true
+
+    slot4_enabled:
+      name: Reminder 4 — enabled
+      default: false
+      selector:
+        boolean:
+    slot4_anchor:
+      name: Reminder 4 — anchor
+      default: start
+      selector:
+        select:
+          options:
+            - label: Event start
+              value: start
+            - label: Event end
+              value: end
+    slot4_offset:
+      name: Reminder 4 — offset
+      description: "Signed HH:MM:SS; negative is before, positive is after the anchor."
+      default: "-00:15:00"
+      selector:
+        text:
+    slot4_title:
+      name: Reminder 4 — notification title
+      default: "Formula 1 reminder"
+      selector:
+        text:
+    slot4_message:
+      name: Reminder 4 — notification message
+      default: "{{ trigger.calendar_event.summary }}"
+      selector:
+        text:
+          multiline: true
+
+variables:
+  keywords: !input keywords
+  slot1_enabled: !input slot1_enabled
+  slot2_enabled: !input slot2_enabled
+  slot3_enabled: !input slot3_enabled
+  slot4_enabled: !input slot4_enabled
+
+triggers:
+  - trigger: calendar
+    entity_id: !input calendar
+    event: !input slot1_anchor
+    offset: !input slot1_offset
+    id: reminder_1
+
+  - trigger: calendar
+    entity_id: !input calendar
+    event: !input slot2_anchor
+    offset: !input slot2_offset
+    id: reminder_2
+
+  - trigger: calendar
+    entity_id: !input calendar
+    event: !input slot3_anchor
+    offset: !input slot3_offset
+    id: reminder_3
+
+  - trigger: calendar
+    entity_id: !input calendar
+    event: !input slot4_anchor
+    offset: !input slot4_offset
+    id: reminder_4
+
+conditions:
+  - condition: template
+    value_template: >
+      {% set summary = trigger.calendar_event.summary | default('', true) %}
+      {% set description = trigger.calendar_event.description | default('', true) %}
+      {% set haystack = (summary ~ ' ' ~ description) | lower %}
+      {% set ns = namespace(found=false) %}
+      {% for item in keywords.split(',') %}
+        {% set keyword = item | trim | lower %}
+        {% if keyword and keyword in haystack %}
+          {% set ns.found = true %}
+        {% endif %}
+      {% endfor %}
+      {{ ns.found if keywords | trim else true }}
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: reminder_1
+          - condition: template
+            value_template: "{{ slot1_enabled }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: !input notify_targets
+            data:
+              title: !input slot1_title
+              message: !input slot1_message
+
+      - conditions:
+          - condition: trigger
+            id: reminder_2
+          - condition: template
+            value_template: "{{ slot2_enabled }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: !input notify_targets
+            data:
+              title: !input slot2_title
+              message: !input slot2_message
+
+      - conditions:
+          - condition: trigger
+            id: reminder_3
+          - condition: template
+            value_template: "{{ slot3_enabled }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: !input notify_targets
+            data:
+              title: !input slot3_title
+              message: !input slot3_message
+
+      - conditions:
+          - condition: trigger
+            id: reminder_4
+          - condition: template
+            value_template: "{{ slot4_enabled }}"
+        sequence:
+          - action: notify.send_message
+            target:
+              entity_id: !input notify_targets
+            data:
+              title: !input slot4_title
+              message: !input slot4_message
+
+mode: parallel
+max: 10
