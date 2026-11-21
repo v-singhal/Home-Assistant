@@ -1,0 +1,98 @@
+blueprint:
+  name: Occupancy-based thermostat temperatures
+  description: >
+    Set one thermostat temperature after occupancy is detected, and another
+    after the room becomes vacant. Each action has its own delay.
+  domain: automation
+
+  input:
+    presence_sensor:
+      name: Presence / occupancy sensor
+      selector:
+        entity:
+          domain: binary_sensor
+
+    thermostat:
+      name: Thermostat
+      selector:
+        entity:
+          domain: climate
+
+    turn_on_delay:
+      name: Delay after occupancy is detected
+      default:
+        hours: 0
+        minutes: 0
+        seconds: 0
+      selector:
+        duration:
+
+    turn_off_delay:
+      name: Delay after the room becomes vacant
+      default:
+        hours: 0
+        minutes: 5
+        seconds: 0
+      selector:
+        duration:
+
+    occupied_temperature:
+      name: Temperature when occupied
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.5
+          mode: box
+
+    vacant_temperature:
+      name: Temperature when vacant
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.5
+          mode: box
+
+trigger:
+  - platform: state
+    entity_id: !input presence_sensor
+    to: "on"
+    id: occupied
+
+  - platform: state
+    entity_id: !input presence_sensor
+    to: "off"
+    id: vacant
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: occupied
+        sequence:
+          - delay: !input turn_on_delay
+          - condition: state
+            entity_id: !input presence_sensor
+            state: "on"
+          - service: climate.set_temperature
+            target:
+              entity_id: !input thermostat
+            data:
+              temperature: !input occupied_temperature
+
+      - conditions:
+          - condition: trigger
+            id: vacant
+        sequence:
+          - delay: !input turn_off_delay
+          - condition: state
+            entity_id: !input presence_sensor
+            state: "off"
+          - service: climate.set_temperature
+            target:
+              entity_id: !input thermostat
+            data:
+              temperature: !input vacant_temperature
+
+mode: restart
