@@ -1,8 +1,9 @@
 blueprint:
   name: 🌡️ Occupancy-based thermostat temperatures
   description: >
-    Set one thermostat temperature after occupancy is detected, and another
-    after the room becomes vacant. Each action has its own delay.
+    Set the target temperature when occupancy or presence is detected, and
+    the minimum temperature when the area becomes unoccupied. Each action
+    has its own delay.
   domain: automation
 
   input:
@@ -10,7 +11,11 @@ blueprint:
       name: Presence / occupancy sensor
       selector:
         entity:
-          domain: binary_sensor
+          filter:
+            - domain: binary_sensor
+              device_class: occupancy
+            - domain: binary_sensor
+              device_class: presence
 
     thermostat:
       name: Thermostat
@@ -28,7 +33,7 @@ blueprint:
         duration:
 
     turn_off_delay:
-      name: Delay after the room becomes vacant
+      name: Delay after the area becomes unoccupied
       default:
         hours: 0
         minutes: 5
@@ -36,20 +41,20 @@ blueprint:
       selector:
         duration:
 
-    occupied_temperature:
-      name: Temperature when occupied
+    target_temperature:
+      name: Target temperature when occupied
       selector:
         number:
-          min: 0
+          min: -50
           max: 100
           step: 0.5
           mode: box
 
-    vacant_temperature:
-      name: Temperature when vacant
+    minimum_temperature:
+      name: Minimum temperature when unoccupied
       selector:
         number:
-          min: 0
+          min: -50
           max: 100
           step: 0.5
           mode: box
@@ -63,7 +68,7 @@ trigger:
   - platform: state
     entity_id: !input presence_sensor
     to: "off"
-    id: vacant
+    id: unoccupied
 
 action:
   - choose:
@@ -79,11 +84,11 @@ action:
             target:
               entity_id: !input thermostat
             data:
-              temperature: !input occupied_temperature
+              temperature: !input target_temperature
 
       - conditions:
           - condition: trigger
-            id: vacant
+            id: unoccupied
         sequence:
           - delay: !input turn_off_delay
           - condition: state
@@ -93,6 +98,6 @@ action:
             target:
               entity_id: !input thermostat
             data:
-              temperature: !input vacant_temperature
+              temperature: !input minimum_temperature
 
 mode: restart
