@@ -1,11 +1,11 @@
 blueprint:
-  name: "🌡️ Occupancy-Based Thermostat Setpoint Cycle"
+  name: "🌡️ Occupancy-Based Thermostat Cycle"
   description: >
     After occupancy is detected for the selected delay, turn on the thermostat
     in the selected heat or cool mode and set the first target temperature.
-    When the thermostat's reported room temperature reaches each target,
-    wait the selected hold time and alternate to the other target. When
-    occupancy clears for the selected delay, turn the thermostat off.
+    When the room temperature reaches each target, wait the selected hold time
+    and alternate to the other target. When occupancy clears for the selected
+    delay, turn the thermostat off.
   domain: automation
 
   input:
@@ -24,6 +24,18 @@ blueprint:
       selector:
         entity:
           domain: climate
+
+    room_temperature_sensor:
+      name: Room temperature sensor (optional)
+      description: >
+        If selected, this sensor is used to detect when a target temperature
+        is reached. Leave blank to use the thermostat's temperature reading.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
 
     occupied_delay:
       name: Delay after occupancy is detected
@@ -75,7 +87,7 @@ blueprint:
 
     target_reached_hold:
       name: Wait after a target temperature is reached
-      description: The blueprint switches to the other setpoint after this wait.
+      description: The blueprint switches to the secondary target after this wait time.
       default:
         hours: 0
         minutes: 0
@@ -85,6 +97,7 @@ blueprint:
 
 variables:
   climate_entity: !input thermostat
+  room_temperature_sensor: !input room_temperature_sensor
   active_hvac_mode: !input occupied_hvac_mode
   first_target: !input target_temperature
   second_target: !input secondary_target_temperature
@@ -133,7 +146,11 @@ action:
                   state: "on"
               sequence:
                 - wait_template: >-
-                    {% set current = state_attr(climate_entity, 'current_temperature') | float(none) %}
+                    {% if room_temperature_sensor %}
+                      {% set current = states(room_temperature_sensor) | float(none) %}
+                    {% else %}
+                      {% set current = state_attr(climate_entity, 'current_temperature') | float(none) %}
+                    {% endif %}
                     {% set goal = cycle_target | float %}
                     {% if current is none %}
                       false
