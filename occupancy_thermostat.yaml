@@ -1,9 +1,9 @@
 blueprint:
-  name: 🌡️ Occupancy-based thermostat temperatures
+  name: "🌡️ Occupancy-Based Thermostat Control"
   description: >
-    Set the target temperature when occupancy or presence is detected, and
-    the minimum temperature when the area becomes unoccupied. Each action
-    has its own delay.
+    After occupancy is detected for the selected delay, set the thermostat
+    to the selected HVAC mode and target temperature. After occupancy clears
+    for the selected delay, set the thermostat HVAC mode to off.
   domain: automation
 
   input:
@@ -23,7 +23,7 @@ blueprint:
         entity:
           domain: climate
 
-    turn_on_delay:
+    occupied_delay:
       name: Delay after occupancy is detected
       default:
         hours: 0
@@ -32,8 +32,8 @@ blueprint:
       selector:
         duration:
 
-    turn_off_delay:
-      name: Delay after the area becomes unoccupied
+    unoccupied_delay:
+      name: Delay after occupancy clears
       default:
         hours: 0
         minutes: 5
@@ -41,20 +41,23 @@ blueprint:
       selector:
         duration:
 
+    occupied_hvac_mode:
+      name: HVAC mode when occupied
+      description: Choose a mode supported by your thermostat.
+      selector:
+        select:
+          options:
+            - heat
+            - cool
+            - heat_cool
+            - auto
+          mode: dropdown
+
     target_temperature:
       name: Target temperature when occupied
       selector:
         number:
-          min: -50
-          max: 100
-          step: 0.5
-          mode: box
-
-    minimum_temperature:
-      name: Minimum temperature when unoccupied
-      selector:
-        number:
-          min: -50
+          min: 0
           max: 100
           step: 0.5
           mode: box
@@ -76,11 +79,16 @@ action:
           - condition: trigger
             id: occupied
         sequence:
-          - delay: !input turn_on_delay
+          - delay: !input occupied_delay
           - condition: state
             entity_id: !input presence_sensor
             state: "on"
-          - service: climate.set_temperature
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input thermostat
+            data:
+              hvac_mode: !input occupied_hvac_mode
+          - action: climate.set_temperature
             target:
               entity_id: !input thermostat
             data:
@@ -90,14 +98,14 @@ action:
           - condition: trigger
             id: unoccupied
         sequence:
-          - delay: !input turn_off_delay
+          - delay: !input unoccupied_delay
           - condition: state
             entity_id: !input presence_sensor
             state: "off"
-          - service: climate.set_temperature
+          - action: climate.set_hvac_mode
             target:
               entity_id: !input thermostat
             data:
-              temperature: !input minimum_temperature
+              hvac_mode: "off"
 
 mode: restart
