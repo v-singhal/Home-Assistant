@@ -1,5 +1,5 @@
 blueprint:
-  name: Occupancy-based thermostat temperatures
+  name: 🌡️ Occupancy-based thermostat temperatures
   description: >
     Set one thermostat temperature after occupancy is detected, and another
     after the room becomes vacant. Each action has its own delay.
