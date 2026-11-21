@@ -1,85 +1,86 @@
 blueprint:
   name: 🥵🥶 Boiler heat demand from radiator thermostats
   description: >
-    Estimates room heat demand from radiator climate entities and uses a
-    boiler-connected climate thermostat to call for heat. Blank room inputs
-    are ignored; select at least one radiator.
+    Uses selected radiator climate entities as room-demand inputs and a
+    boiler-connected climate thermostat to call for heat. Blank radiator
+    inputs are ignored. At least one radiator must be selected. If any
+    selected radiator is unavailable or has invalid temperature attributes,
+    the central thermostat is left unchanged.
   domain: automation
-
   input:
     boiler_thermostat:
       name: Boiler-connected central thermostat
-      description: The climate entity whose relay controls the boiler.
+      description: Climate entity that controls the boiler.
       selector:
         entity:
           filter:
             - domain: climate
 
     room_thermostat_1:
-      name: Room radiator thermostat 1 (optional)
+      name: Radiator thermostat 1 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_2:
-      name: Room radiator thermostat 2 (optional)
+      name: Radiator thermostat 2 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_3:
-      name: Room radiator thermostat 3 (optional)
+      name: Radiator thermostat 3 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_4:
-      name: Room radiator thermostat 4 (optional)
+      name: Radiator thermostat 4 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_5:
-      name: Room radiator thermostat 5 (optional)
+      name: Radiator thermostat 5 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_6:
-      name: Room radiator thermostat 6 (optional)
+      name: Radiator thermostat 6 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_7:
-      name: Room radiator thermostat 7 (optional)
+      name: Radiator thermostat 7 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_8:
-      name: Room radiator thermostat 8 (optional)
+      name: Radiator thermostat 8 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_9:
-      name: Room radiator thermostat 9 (optional)
+      name: Radiator thermostat 9 (optional)
       default: ""
       selector:
         entity:
           filter:
             - domain: climate
     room_thermostat_10:
-      name: Room radiator thermostat 10 (optional)
+      name: Radiator thermostat 10 (optional)
       default: ""
       selector:
         entity:
@@ -88,54 +89,55 @@ blueprint:
 
     room_margin:
       name: Room temperature margin
-      description: A room requests heat when it is this far below its target.
+      description: >
+        A room requests heat when its measured temperature is below its target
+        minus this margin. Values use Home Assistant's temperature unit.
       default: 0.4
       selector:
         number:
           min: 0
-          max: 3
+          max: 10
           step: 0.1
-          unit_of_measurement: "°C"
           mode: box
 
     call_boost:
-      name: Boiler thermostat boost
+      name: Central thermostat boost
       description: >
-        While a room needs heat, set the central thermostat this many degrees
-        above its own measured temperature.
+        Add this amount to the central thermostat's measured temperature when
+        requesting heat. Values use Home Assistant's temperature unit.
       default: 2
       selector:
         number:
-          min: 0.5
-          max: 5
-          step: 0.5
-          unit_of_measurement: "°C"
+          min: 0.1
+          max: 20
+          step: 0.1
           mode: box
 
     max_call_temperature:
-      name: Maximum call temperature
-      description: Set no higher than the central thermostat's supported maximum.
+      name: Maximum central target
+      description: >
+        Upper cap for the central target. Set it within the central
+        thermostat's supported range, and above its measured temperature
+        whenever heat may be requested. Values use Home Assistant's
+        temperature unit.
       default: 25
       selector:
         number:
-          min: 5
-          max: 30
-          step: 0.5
-          unit_of_measurement: "°C"
+          min: 1
+          max: 100
+          step: 0.1
           mode: box
 
-trigger:
-  - platform: state
+triggers:
+  - trigger: homeassistant
+    event: start
+
+  - trigger: state
     entity_id: !input boiler_thermostat
     attribute: current_temperature
 
-  - platform: time_pattern
+  - trigger: time_pattern
     minutes: "/1"
-
-  - platform: homeassistant
-    event: start
-
-condition: []
 
 variables:
   boiler_entity: !input boiler_thermostat
@@ -167,11 +169,9 @@ variables:
       {% set entity_state = states(entity_id) %}
       {% if entity_state in ['unknown', 'unavailable'] %}
         {% set ns.valid = false %}
-      {% elif entity_state != 'off' %}
-        {% if state_attr(entity_id, 'current_temperature') is none
-              or state_attr(entity_id, 'temperature') is none %}
-          {% set ns.valid = false %}
-        {% endif %}
+      {% elif not is_number(state_attr(entity_id, 'current_temperature'))
+            or not is_number(state_attr(entity_id, 'temperature')) %}
+        {% set ns.valid = false %}
       {% endif %}
     {% endfor %}
     {{ ns.valid }}
@@ -183,80 +183,95 @@ variables:
       {% set current = state_attr(entity_id, 'current_temperature') %}
       {% set target = state_attr(entity_id, 'temperature') %}
       {% if entity_state not in ['off', 'unknown', 'unavailable']
-            and current is not none
-            and target is not none
-            and (current | float(0))
-                < ((target | float(0)) - (room_margin_value | float(0))) %}
+            and is_number(current)
+            and is_number(target)
+            and (current | float)
+                < ((target | float) - (room_margin_value | float)) %}
         {% set ns.demand = true %}
       {% endif %}
     {% endfor %}
     {{ ns.demand }}
 
-  boiler_available: >-
-    {{ states(boiler_entity) not in ['unknown', 'unavailable'] }}
+  central_current_temperature: >-
+    {{ state_attr(boiler_entity, 'current_temperature') }}
 
-  boiler_call_target: >-
-    {% set current = state_attr(boiler_entity, 'current_temperature') %}
-    {% set maximum = max_call_temperature_value | float(25) %}
-    {% if current is none %}
-      {{ maximum }}
+  central_target_step: >-
+    {% set reported_step = state_attr(boiler_entity, 'target_temp_step') %}
+    {% if is_number(reported_step) and (reported_step | float) > 0 %}
+      {{ reported_step | float }}
     {% else %}
-      {% set desired = (current | float(0)) + (call_boost_value | float(2)) %}
-      {% set capped = [desired, maximum] | min %}
-      {{ [((capped * 2) | round(0) / 2), maximum] | min }}
+      0.1
     {% endif %}
 
-action:
+  central_effective_max: >-
+    {% set configured_max = max_call_temperature_value | float %}
+    {% set device_max = state_attr(boiler_entity, 'max_temp') %}
+    {% if is_number(device_max) %}
+      {{ [configured_max, (device_max | float)] | min }}
+    {% else %}
+      {{ configured_max }}
+    {% endif %}
+
+  boiler_call_target: >-
+    {% set current = central_current_temperature %}
+    {% set step = central_target_step | float %}
+    {% set cap = central_effective_max | float %}
+    {% if is_number(current) and step > 0 %}
+      {% set desired = (current | float) + (call_boost_value | float) %}
+      {% set rounded_up = ((desired / step) | round(0, 'ceil')) * step %}
+      {% set aligned_cap = ((cap / step) | round(0, 'floor')) * step %}
+      {{ [rounded_up, aligned_cap] | min }}
+    {% else %}
+      0
+    {% endif %}
+
+actions:
   - choose:
       - conditions:
           - condition: template
             value_template: >-
-              {{ boiler_available
-                 and (room_entities | count > 0)
+              {{ room_entities | count > 0
                  and room_readings_valid
-                 and room_needs_heat }}
+                 and room_needs_heat
+                 and states(boiler_entity) not in ['unknown', 'unavailable']
+                 and 'heat' in (state_attr(boiler_entity, 'hvac_modes') or [])
+                 and is_number(central_current_temperature)
+                 and (boiler_call_target | float)
+                     > (central_current_temperature | float) }}
         sequence:
           - if:
               - condition: template
-                value_template: "{{ states(boiler_entity) != 'heat' }}"
+                value_template: >-
+                  {% set current_target = state_attr(boiler_entity, 'temperature') %}
+                  {{ states(boiler_entity) != 'heat'
+                     or not is_number(current_target)
+                     or ((current_target | float
+                          - (boiler_call_target | float)) | abs) > 0.05 }}
             then:
-              - service: climate.set_hvac_mode
+              - action: climate.set_temperature
                 target:
                   entity_id: !input boiler_thermostat
                 data:
                   hvac_mode: heat
-
-          - if:
-              - condition: template
-                value_template: >-
-                  {% set target = state_attr(boiler_entity, 'temperature') %}
-                  {{ target is none
-                     or ((target | float(0)
-                          - (boiler_call_target | float(25))) | abs) > 0.2 }}
-            then:
-              - service: climate.set_temperature
-                target:
-                  entity_id: !input boiler_thermostat
-                data:
-                  temperature: "{{ boiler_call_target | float(25) }}"
+                  temperature: "{{ boiler_call_target | float }}"
 
       - conditions:
           - condition: template
             value_template: >-
-              {{ boiler_available
-                 and (room_entities | count > 0)
+              {{ room_entities | count > 0
                  and room_readings_valid
-                 and not room_needs_heat }}
+                 and not room_needs_heat
+                 and states(boiler_entity) not in ['unknown', 'unavailable']
+                 and 'off' in (state_attr(boiler_entity, 'hvac_modes') or [])
+                 and states(boiler_entity) != 'off' }}
         sequence:
-          - if:
-              - condition: template
-                value_template: "{{ states(boiler_entity) != 'off' }}"
-            then:
-              - service: climate.set_hvac_mode
-                target:
-                  entity_id: !input boiler_thermostat
-                data:
-                  hvac_mode: "off"
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input boiler_thermostat
+            data:
+              hvac_mode: "off"
+
+mode: restart
 
     default: []
 
