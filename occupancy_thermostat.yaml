@@ -1,9 +1,11 @@
 blueprint:
-  name: "🌡️ Occupancy-Based Thermostat Control"
+  name: "🌡️ Occupancy-Based Thermostat Setpoint Cycle"
   description: >
-    After occupancy is detected for the selected delay, set the thermostat
-    to the selected HVAC mode and target temperature. After occupancy clears
-    for the selected delay, set the thermostat HVAC mode to off.
+    After occupancy is detected for the selected delay, turn on the thermostat
+    in the selected heat or cool mode and set the first target temperature.
+    When the thermostat's reported room temperature reaches each target,
+    wait the selected hold time and alternate to the other target. When
+    occupancy clears for the selected delay, turn the thermostat off.
   domain: automation
 
   input:
@@ -33,7 +35,7 @@ blueprint:
         duration:
 
     unoccupied_delay:
-      name: Delay after occupancy clears
+      name: Delay after occupancy clears before turning off
       default:
         hours: 0
         minutes: 5
@@ -43,24 +45,49 @@ blueprint:
 
     occupied_hvac_mode:
       name: HVAC mode when occupied
-      description: Choose a mode supported by your thermostat.
+      description: Choose heat or cool, as supported by your thermostat.
       selector:
         select:
           options:
             - heat
             - cool
-            - heat_cool
-            - auto
           mode: dropdown
 
     target_temperature:
-      name: Target temperature when occupied
+      name: First target temperature
+      description: The first setpoint used after occupancy is detected.
       selector:
         number:
           min: 0
           max: 100
           step: 0.5
           mode: box
+
+    secondary_target_temperature:
+      name: Secondary target temperature
+      description: The setpoint used after the first target is reached.
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.5
+          mode: box
+
+    target_reached_hold:
+      name: Wait after a target temperature is reached
+      description: The blueprint switches to the other setpoint after this wait.
+      default:
+        hours: 0
+        minutes: 0
+        seconds: 0
+      selector:
+        duration:
+
+variables:
+  climate_entity: !input thermostat
+  active_hvac_mode: !input occupied_hvac_mode
+  first_target: !input target_temperature
+  second_target: !input secondary_target_temperature
 
 trigger:
   - platform: state
@@ -83,16 +110,58 @@ action:
           - condition: state
             entity_id: !input presence_sensor
             state: "on"
+
           - action: climate.set_hvac_mode
             target:
               entity_id: !input thermostat
             data:
               hvac_mode: !input occupied_hvac_mode
+
+          - variables:
+              cycle_target: "{{ first_target | float }}"
+
           - action: climate.set_temperature
             target:
               entity_id: !input thermostat
             data:
-              temperature: !input target_temperature
+              temperature: "{{ cycle_target }}"
+
+          - repeat:
+              while:
+                - condition: state
+                  entity_id: !input presence_sensor
+                  state: "on"
+              sequence:
+                - wait_template: >-
+                    {% set current = state_attr(climate_entity, 'current_temperature') | float(none) %}
+                    {% set goal = cycle_target | float %}
+                    {% if current is none %}
+                      false
+                    {% elif active_hvac_mode == 'heat' %}
+                      {{ current >= goal }}
+                    {% else %}
+                      {{ current <= goal }}
+                    {% endif %}
+
+                - delay: !input target_reached_hold
+
+                - condition: state
+                  entity_id: !input presence_sensor
+                  state: "on"
+
+                - variables:
+                    cycle_target: >-
+                      {% if (cycle_target | float) == (first_target | float) %}
+                        {{ second_target | float }}
+                      {% else %}
+                        {{ first_target | float }}
+                      {% endif %}
+
+                - action: climate.set_temperature
+                  target:
+                    entity_id: !input thermostat
+                  data:
+                    temperature: "{{ cycle_target }}"
 
       - conditions:
           - condition: trigger
