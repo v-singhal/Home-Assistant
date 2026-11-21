@@ -272,7 +272,3 @@ actions:
               hvac_mode: "off"
 
 mode: restart
-
-    default: []
-
-mode: restart
