@@ -1,10 +1,11 @@
 blueprint:
-  name: "🥶 Boiler Demand Controller via Radiator Thermostats"
+  name: Boiler demand from radiator thermostats
   description: >
-    Uses up to 10 radiator climate entities to decide whether to call for heat
-    through a central climate thermostat. An optional temperature sensor can
-    replace each radiator thermostat's current_temperature reading.
+    Controls a central boiler-connected climate thermostat from up to 10
+    radiator climate entities. Optional room temperature sensors can replace
+    the radiator entities' current_temperature readings.
   domain: automation
+  min_version: "2024.10.0"
 
   input:
     central_thermostat:
@@ -14,185 +15,218 @@ blueprint:
         entity:
           domain: climate
 
-    radiator_1:
-      name: Radiator thermostat 1
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_2:
-      name: Radiator thermostat 2
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_3:
-      name: Radiator thermostat 3
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_4:
-      name: Radiator thermostat 4
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_5:
-      name: Radiator thermostat 5
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_6:
-      name: Radiator thermostat 6
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_7:
-      name: Radiator thermostat 7
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_8:
-      name: Radiator thermostat 8
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_9:
-      name: Radiator thermostat 9
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-    radiator_10:
-      name: Radiator thermostat 10
-      description: Optional. Leave blank to ignore.
-      default: ""
-      selector:
-        entity:
-          domain: climate
+    radiator_room_1:
+      name: Radiator 1
+      input:
+        radiator_1:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_1:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
 
-    temperature_sensor_1:
-      name: Temperature sensor for radiator 1
-      description: Optional. If blank, radiator 1's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_2:
-      name: Temperature sensor for radiator 2
-      description: Optional. If blank, radiator 2's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_3:
-      name: Temperature sensor for radiator 3
-      description: Optional. If blank, radiator 3's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_4:
-      name: Temperature sensor for radiator 4
-      description: Optional. If blank, radiator 4's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_5:
-      name: Temperature sensor for radiator 5
-      description: Optional. If blank, radiator 5's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_6:
-      name: Temperature sensor for radiator 6
-      description: Optional. If blank, radiator 6's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_7:
-      name: Temperature sensor for radiator 7
-      description: Optional. If blank, radiator 7's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_8:
-      name: Temperature sensor for radiator 8
-      description: Optional. If blank, radiator 8's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_9:
-      name: Temperature sensor for radiator 9
-      description: Optional. If blank, radiator 9's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
-    temperature_sensor_10:
-      name: Temperature sensor for radiator 10
-      description: Optional. If blank, radiator 10's current_temperature is used.
-      default: ""
-      selector:
-        entity:
-          domain: sensor
+    radiator_room_2:
+      name: Radiator 2
+      input:
+        radiator_2:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_2:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
 
-    room_temperature_margin:
-      name: Room temperature margin
-      description: A room calls for heat below target temperature minus this margin.
-      default: 0.5
-      selector:
-        number:
-          min: 0
-          max: 10
-          step: 0.1
-          mode: box
-          unit_of_measurement: "°"
+    radiator_room_3:
+      name: Radiator 3
+      input:
+        radiator_3:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_3:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
 
-    central_temperature_boost:
-      name: Central thermostat boost
-      description: Adds this amount to the central thermostat's measured temperature.
-      default: 2
-      selector:
-        number:
-          min: 0.1
-          max: 20
-          step: 0.1
-          mode: box
-          unit_of_measurement: "°"
+    radiator_room_4:
+      name: Radiator 4
+      input:
+        radiator_4:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_4:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
 
-    central_maximum_target:
-      name: Central thermostat maximum target
-      description: >
-        Upper cap for the target sent to the central thermostat. Set this
-        within that thermostat's supported temperature range.
-      default: 25
-      selector:
-        number:
-          min: -50
-          max: 100
-          step: 0.1
-          mode: box
-          unit_of_measurement: "°"
+    radiator_room_5:
+      name: Radiator 5
+      input:
+        radiator_5:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_5:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+    radiator_room_6:
+      name: Radiator 6
+      input:
+        radiator_6:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_6:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+    radiator_room_7:
+      name: Radiator 7
+      input:
+        radiator_7:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_7:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+    radiator_room_8:
+      name: Radiator 8
+      input:
+        radiator_8:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_8:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+    radiator_room_9:
+      name: Radiator 9
+      input:
+        radiator_9:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_9:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+    radiator_room_10:
+      name: Radiator 10
+      input:
+        radiator_10:
+          name: Radiator thermostat
+          default: ""
+          selector:
+            entity:
+              domain: climate
+        temperature_sensor_10:
+          name: Corresponding temperature sensor (optional)
+          description: Leave blank to use this thermostat's current_temperature.
+          default: ""
+          selector:
+            entity:
+              domain: sensor
+
+    settings:
+      name: Temperature settings
+      input:
+        room_temperature_margin:
+          name: Room temperature margin
+          description: >
+            A room needs heat when its measured temperature is below its
+            thermostat target minus this margin.
+          default: 0.5
+          selector:
+            number:
+              min: 0
+              max: 10
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°"
+
+        central_temperature_boost:
+          name: Central thermostat boost
+          description: Amount added to the central thermostat's measured temperature.
+          default: 2
+          selector:
+            number:
+              min: 0.1
+              max: 20
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°"
+
+        central_maximum_target:
+          name: Central thermostat maximum target
+          description: >
+            Upper cap for the target sent to the central thermostat. Set this
+            within that thermostat's supported temperature range.
+          default: 25
+          selector:
+            number:
+              min: -50
+              max: 100
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°"
 
 variables:
   central: !input central_thermostat
@@ -230,15 +264,6 @@ variables:
        | reject('equalto', '')
        | reject('equalto', none)
        | list }}
-
-  selected_room_sensors: >-
-    {{ room_sensors
-       | reject('equalto', '')
-       | reject('equalto', none)
-       | list }}
-
-  watched_entities: >-
-    {{ [central] + selected_radiators + selected_room_sensors }}
 
   rooms_valid: >-
     {% set ns = namespace(ok=true) %}
@@ -285,10 +310,6 @@ variables:
     {{ ns.needs_heat }}
 
   central_temperature: "{{ state_attr(central, 'current_temperature') }}"
-  central_modes: "{{ state_attr(central, 'hvac_modes') or [] }}"
-  central_available: "{{ states(central) not in ['unknown', 'unavailable'] }}"
-  central_can_heat: "{{ 'heat' in central_modes }}"
-  central_can_turn_off: "{{ 'off' in central_modes }}"
   desired_central_target: >-
     {{ [((central_temperature | float(0) + (boost | float)) | round(1)),
         (maximum_target | float)] | min }}
@@ -297,6 +318,7 @@ triggers:
   - trigger: homeassistant
     event: start
     id: startup
+
   - trigger: event
     event_type: state_changed
     id: entity_change
@@ -304,21 +326,30 @@ triggers:
 conditions:
   - condition: template
     value_template: "{{ selected_radiators | count > 0 }}"
+
   - condition: template
     value_template: >-
-      {{ trigger.id == 'startup'
-         or trigger.event.data.entity_id in watched_entities }}
+      {% if trigger.id == 'startup' %}
+        true
+      {% elif trigger.event is defined and trigger.event.data is defined %}
+        {% set changed_entity = trigger.event.data.get('entity_id', '') %}
+        {{ changed_entity == central
+           or changed_entity in radiator_entities
+           or changed_entity in room_sensors }}
+      {% else %}
+        false
+      {% endif %}
 
 actions:
   - choose:
       - conditions:
           - condition: template
             value_template: >-
-              {{ rooms_valid
-                 and room_needs_heat
-                 and central_available
+              {{ (rooms_valid | bool)
+                 and (room_needs_heat | bool)
+                 and states(central) not in ['unknown', 'unavailable']
                  and is_number(central_temperature)
-                 and central_can_heat }}
+                 and 'heat' in (state_attr(central, 'hvac_modes') or []) }}
         sequence:
           - if:
               - condition: template
@@ -346,10 +377,10 @@ actions:
       - conditions:
           - condition: template
             value_template: >-
-              {{ rooms_valid
-                 and not room_needs_heat
-                 and central_available
-                 and central_can_turn_off }}
+              {{ (rooms_valid | bool)
+                 and not (room_needs_heat | bool)
+                 and states(central) not in ['unknown', 'unavailable']
+                 and 'off' in (state_attr(central, 'hvac_modes') or []) }}
         sequence:
           - if:
               - condition: template
@@ -361,4 +392,4 @@ actions:
                 data:
                   hvac_mode: "off"
 
-mode: single
+mode: restart
