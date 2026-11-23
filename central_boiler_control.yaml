@@ -2,8 +2,7 @@ blueprint:
   name: 🥵🥶 Boiler heat demand from radiator thermostats
   description: >
     Uses selected radiator climate entities as room-demand inputs and a
-    boiler-connected climate thermostat to call for heat when radiator
-    thermostats or optional room temperature sensors change. Each radiator
+    boiler-connected climate thermostat to call for heat. Each radiator
     can optionally use a dedicated 1:1 temperature sensor instead of its own
     current_temperature attribute. Blank inputs are ignored. If any selected
     radiator or active sensor is unavailable or invalid, the central thermostat
@@ -210,48 +209,38 @@ triggers:
   - trigger: homeassistant
     event: start
   - trigger: state
-    entity_id: !input room_thermostat_1
-  - trigger: state
-    entity_id: !input room_temp_sensor_1
-  - trigger: state
-    entity_id: !input room_thermostat_2
-  - trigger: state
-    entity_id: !input room_temp_sensor_2
-  - trigger: state
-    entity_id: !input room_thermostat_3
-  - trigger: state
-    entity_id: !input room_temp_sensor_3
-  - trigger: state
-    entity_id: !input room_thermostat_4
-  - trigger: state
-    entity_id: !input room_temp_sensor_4
-  - trigger: state
-    entity_id: !input room_thermostat_5
-  - trigger: state
-    entity_id: !input room_temp_sensor_5
-  - trigger: state
-    entity_id: !input room_thermostat_6
-  - trigger: state
-    entity_id: !input room_temp_sensor_6
-  - trigger: state
-    entity_id: !input room_thermostat_7
-  - trigger: state
-    entity_id: !input room_temp_sensor_7
-  - trigger: state
-    entity_id: !input room_thermostat_8
-  - trigger: state
-    entity_id: !input room_temp_sensor_8
-  - trigger: state
-    entity_id: !input room_thermostat_9
-  - trigger: state
-    entity_id: !input room_temp_sensor_9
-  - trigger: state
-    entity_id: !input room_thermostat_10
-  - trigger: state
-    entity_id: !input room_temp_sensor_10
-  - trigger: state
     entity_id: !input boiler_thermostat
     attribute: current_temperature
+  - trigger: template
+    value_template: >-
+      {% set margin = ('!input room_margin' | float) %}
+      {% set pairs = [
+        ('!input room_thermostat_1', '!input room_temp_sensor_1'),
+        ('!input room_thermostat_2', '!input room_temp_sensor_2'),
+        ('!input room_thermostat_3', '!input room_temp_sensor_3'),
+        ('!input room_thermostat_4', '!input room_temp_sensor_4'),
+        ('!input room_thermostat_5', '!input room_temp_sensor_5'),
+        ('!input room_thermostat_6', '!input room_temp_sensor_6'),
+        ('!input room_thermostat_7', '!input room_temp_sensor_7'),
+        ('!input room_thermostat_8', '!input room_temp_sensor_8'),
+        ('!input room_thermostat_9', '!input room_temp_sensor_9'),
+        ('!input room_thermostat_10', '!input room_temp_sensor_10')
+      ] %}
+      {% set ns = namespace(demand=false) %}
+      {% for t, s in pairs %}
+        {% if t not in ['', none] and states(t) not in ['off', 'unknown', 'unavailable'] %}
+          {% set use_s = (s not in ['', none]) %}
+          {% set cur = states(s) if use_s else state_attr(t, 'current_temperature') %}
+          {% set tgt = state_attr(t, 'temperature') %}
+          {% if (not use_s or states(s) not in ['unknown', 'unavailable'])
+                and is_number(cur)
+                and is_number(tgt)
+                and (cur | float) < ((tgt | float) - margin) %}
+            {% set ns.demand = true %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+      {{ ns.demand }}
 
 variables:
   boiler_entity: !input boiler_thermostat
