@@ -321,7 +321,119 @@ triggers:
 
   - trigger: event
     event_type: state_changed
-    id: entity_change
+    event_data:
+      entity_id: !input central_thermostat
+    id: central_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_1
+    id: radiator_1_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_1
+    id: sensor_1_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_2
+    id: radiator_2_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_2
+    id: sensor_2_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_3
+    id: radiator_3_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_3
+    id: sensor_3_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_4
+    id: radiator_4_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_4
+    id: sensor_4_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_5
+    id: radiator_5_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_5
+    id: sensor_5_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_6
+    id: radiator_6_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_6
+    id: sensor_6_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_7
+    id: radiator_7_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_7
+    id: sensor_7_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_8
+    id: radiator_8_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_8
+    id: sensor_8_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_9
+    id: radiator_9_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_9
+    id: sensor_9_change
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_10
+    id: radiator_10_change
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input temperature_sensor_10
+    id: sensor_10_change
 
 conditions:
   - condition: template
