@@ -3,10 +3,11 @@ blueprint:
   description: >
     Controls a central boiler-connected climate thermostat from up to 10
     radiator climate entities. Optional room temperature sensors can replace
-    the radiator entities' current_temperature readings.
+    radiator entities' current_temperature readings.
   domain: automation
   homeassistant:
     min_version: "2024.10.0"
+
   input:
     central_thermostat:
       name: Boiler-connected central thermostat
@@ -185,7 +186,7 @@ blueprint:
             entity:
               domain: sensor
 
-    settings:
+    temperature_settings:
       name: Temperature settings
       input:
         room_temperature_margin:
@@ -204,7 +205,9 @@ blueprint:
 
         central_temperature_boost:
           name: Central thermostat boost
-          description: Amount added to the central thermostat's measured temperature.
+          description: >
+            Added to the central thermostat's measured temperature when
+            calculating its requested target.
           default: 2
           selector:
             number:
@@ -289,30 +292,39 @@ variables:
     {% endfor %}
     {{ ns.ok }}
 
-  room_needs_heat: >-
-    {% set ns = namespace(needs_heat=false) %}
+  room_heat_target: >-
+    {% set ns = namespace(target=none) %}
     {% for i in range(radiator_entities | length) %}
       {% set radiator = radiator_entities[i] %}
-      {% if radiator not in ['', none] and states(radiator) not in ['off', 'unknown', 'unavailable'] %}
-        {% set target = state_attr(radiator, 'temperature') %}
+      {% if radiator not in ['', none]
+            and states(radiator) not in ['off', 'unknown', 'unavailable'] %}
+        {% set requested = state_attr(radiator, 'temperature') %}
         {% set sensor = room_sensors[i] %}
         {% if sensor not in ['', none] %}
           {% set measured = states(sensor) %}
         {% else %}
           {% set measured = state_attr(radiator, 'current_temperature') %}
         {% endif %}
-        {% if is_number(target) and is_number(measured)
-              and (measured | float) < ((target | float) - (margin | float)) %}
-          {% set ns.needs_heat = true %}
+        {% if is_number(requested) and is_number(measured)
+              and (measured | float) < ((requested | float) - (margin | float)) %}
+          {% if ns.target is none or (requested | float) > ns.target %}
+            {% set ns.target = requested | float %}
+          {% endif %}
         {% endif %}
       {% endif %}
     {% endfor %}
-    {{ ns.needs_heat }}
+    {{ ns.target }}
 
   central_temperature: "{{ state_attr(central, 'current_temperature') }}"
+
   desired_central_target: >-
-    {{ [((central_temperature | float(0) + (boost | float)) | round(1)),
-        (maximum_target | float)] | min }}
+    {% if is_number(room_heat_target) and is_number(central_temperature) %}
+      {{ [[(room_heat_target | float),
+           ((central_temperature | float) + (boost | float))] | max,
+         (maximum_target | float)] | min | round(1) }}
+    {% else %}
+      {{ none }}
+    {% endif %}
 
 triggers:
   - trigger: homeassistant
@@ -445,9 +457,10 @@ actions:
           - condition: template
             value_template: >-
               {{ (rooms_valid | bool)
-                 and (room_needs_heat | bool)
-                 and states(central) not in ['unknown', 'unavailable']
+                 and is_number(room_heat_target)
                  and is_number(central_temperature)
+                 and states(central) not in ['unknown', 'unavailable']
+                 and is_number(desired_central_target)
                  and 'heat' in (state_attr(central, 'hvac_modes') or []) }}
         sequence:
           - if:
@@ -477,7 +490,7 @@ actions:
           - condition: template
             value_template: >-
               {{ (rooms_valid | bool)
-                 and not (room_needs_heat | bool)
+                 and not is_number(room_heat_target)
                  and states(central) not in ['unknown', 'unavailable']
                  and 'off' in (state_attr(central, 'hvac_modes') or []) }}
         sequence:
@@ -491,4 +504,4 @@ actions:
                 data:
                   hvac_mode: "off"
 
-mode: restart
+mode: single
