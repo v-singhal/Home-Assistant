@@ -439,19 +439,6 @@ conditions:
   - condition: template
     value_template: "{{ selected_radiators | count > 0 }}"
 
-  - condition: template
-    value_template: >-
-      {% if trigger.id == 'startup' %}
-        true
-      {% elif trigger.event is defined and trigger.event.data is defined %}
-        {% set changed_entity = trigger.event.data.get('entity_id', '') %}
-        {{ changed_entity == central
-           or changed_entity in radiator_entities
-           or changed_entity in room_sensors }}
-      {% else %}
-        false
-      {% endif %}
-
 actions:
   - choose:
       - conditions:
