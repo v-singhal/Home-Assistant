@@ -2,10 +2,12 @@ blueprint:
   name: 🥵🥶 Boiler heat demand from radiator thermostats
   description: >
     Uses selected radiator climate entities as room-demand inputs and a
-    boiler-connected climate thermostat to call for heat. Blank radiator
-    inputs are ignored. At least one radiator must be selected. If any
-    selected radiator is unavailable or has invalid temperature attributes,
-    the central thermostat is left unchanged.
+    boiler-connected climate thermostat to call for heat when radiator
+    thermostats or optional room temperature sensors change. Each radiator
+    can optionally use a dedicated 1:1 temperature sensor instead of its own
+    current_temperature attribute. Blank inputs are ignored. If any selected
+    radiator or active sensor is unavailable or invalid, the central thermostat
+    is left unchanged.
   domain: automation
   input:
     boiler_thermostat:
@@ -15,7 +17,6 @@ blueprint:
         entity:
           filter:
             - domain: climate
-
     room_thermostat_1:
       name: Radiator thermostat 1 (optional)
       default: ""
@@ -23,6 +24,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_1:
+      name: Room temperature sensor 1 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_2:
       name: Radiator thermostat 2 (optional)
       default: ""
@@ -30,6 +39,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_2:
+      name: Room temperature sensor 2 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_3:
       name: Radiator thermostat 3 (optional)
       default: ""
@@ -37,6 +54,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_3:
+      name: Room temperature sensor 3 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_4:
       name: Radiator thermostat 4 (optional)
       default: ""
@@ -44,6 +69,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_4:
+      name: Room temperature sensor 4 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_5:
       name: Radiator thermostat 5 (optional)
       default: ""
@@ -51,6 +84,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_5:
+      name: Room temperature sensor 5 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_6:
       name: Radiator thermostat 6 (optional)
       default: ""
@@ -58,6 +99,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_6:
+      name: Room temperature sensor 6 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_7:
       name: Radiator thermostat 7 (optional)
       default: ""
@@ -65,6 +114,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_7:
+      name: Room temperature sensor 7 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_8:
       name: Radiator thermostat 8 (optional)
       default: ""
@@ -72,6 +129,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_8:
+      name: Room temperature sensor 8 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_9:
       name: Radiator thermostat 9 (optional)
       default: ""
@@ -79,6 +144,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
+    room_temp_sensor_9:
+      name: Room temperature sensor 9 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_thermostat_10:
       name: Radiator thermostat 10 (optional)
       default: ""
@@ -86,7 +159,14 @@ blueprint:
         entity:
           filter:
             - domain: climate
-
+    room_temp_sensor_10:
+      name: Room temperature sensor 10 (optional, overrides thermostat temp)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              device_class: temperature
     room_margin:
       name: Room temperature margin
       description: >
@@ -99,7 +179,6 @@ blueprint:
           max: 10
           step: 0.1
           mode: box
-
     call_boost:
       name: Central thermostat boost
       description: >
@@ -112,7 +191,6 @@ blueprint:
           max: 20
           step: 0.1
           mode: box
-
     max_call_temperature:
       name: Maximum central target
       description: >
@@ -131,13 +209,49 @@ blueprint:
 triggers:
   - trigger: homeassistant
     event: start
-
+  - trigger: state
+    entity_id: !input room_thermostat_1
+  - trigger: state
+    entity_id: !input room_temp_sensor_1
+  - trigger: state
+    entity_id: !input room_thermostat_2
+  - trigger: state
+    entity_id: !input room_temp_sensor_2
+  - trigger: state
+    entity_id: !input room_thermostat_3
+  - trigger: state
+    entity_id: !input room_temp_sensor_3
+  - trigger: state
+    entity_id: !input room_thermostat_4
+  - trigger: state
+    entity_id: !input room_temp_sensor_4
+  - trigger: state
+    entity_id: !input room_thermostat_5
+  - trigger: state
+    entity_id: !input room_temp_sensor_5
+  - trigger: state
+    entity_id: !input room_thermostat_6
+  - trigger: state
+    entity_id: !input room_temp_sensor_6
+  - trigger: state
+    entity_id: !input room_thermostat_7
+  - trigger: state
+    entity_id: !input room_temp_sensor_7
+  - trigger: state
+    entity_id: !input room_thermostat_8
+  - trigger: state
+    entity_id: !input room_temp_sensor_8
+  - trigger: state
+    entity_id: !input room_thermostat_9
+  - trigger: state
+    entity_id: !input room_temp_sensor_9
+  - trigger: state
+    entity_id: !input room_thermostat_10
+  - trigger: state
+    entity_id: !input room_temp_sensor_10
   - trigger: state
     entity_id: !input boiler_thermostat
     attribute: current_temperature
-
-  - trigger: time_pattern
-    minutes: "/1"
 
 variables:
   boiler_entity: !input boiler_thermostat
@@ -145,32 +259,62 @@ variables:
   call_boost_value: !input call_boost
   max_call_temperature_value: !input max_call_temperature
 
-  room_entity_inputs:
-    - !input room_thermostat_1
-    - !input room_thermostat_2
-    - !input room_thermostat_3
-    - !input room_thermostat_4
-    - !input room_thermostat_5
-    - !input room_thermostat_6
-    - !input room_thermostat_7
-    - !input room_thermostat_8
-    - !input room_thermostat_9
-    - !input room_thermostat_10
+  room_pairs_raw:
+    - thermostat: !input room_thermostat_1
+      sensor: !input room_temp_sensor_1
+    - thermostat: !input room_thermostat_2
+      sensor: !input room_temp_sensor_2
+    - thermostat: !input room_thermostat_3
+      sensor: !input room_temp_sensor_3
+    - thermostat: !input room_thermostat_4
+      sensor: !input room_temp_sensor_4
+    - thermostat: !input room_thermostat_5
+      sensor: !input room_temp_sensor_5
+    - thermostat: !input room_thermostat_6
+      sensor: !input room_temp_sensor_6
+    - thermostat: !input room_thermostat_7
+      sensor: !input room_temp_sensor_7
+    - thermostat: !input room_thermostat_8
+      sensor: !input room_temp_sensor_8
+    - thermostat: !input room_thermostat_9
+      sensor: !input room_temp_sensor_9
+    - thermostat: !input room_thermostat_10
+      sensor: !input room_temp_sensor_10
 
-  room_entities: >-
-    {{ room_entity_inputs
-       | reject('equalto', '')
-       | reject('equalto', none)
-       | list }}
+  active_rooms: >-
+    {% set items = [] %}
+    {% for pair in room_pairs_raw %}
+      {% set t = pair.thermostat %}
+      {% set s = pair.sensor %}
+      {% if t not in ['', none] %}
+        {% set use_sensor = (s not in ['', none]) %}
+        {% set current_val = states(s) if use_sensor else state_attr(t, 'current_temperature') %}
+        {% set current_valid = (
+          (not use_sensor or states(s) not in ['unknown', 'unavailable'])
+          and is_number(current_val)
+        ) %}
+        {% set target_val = state_attr(t, 'temperature') %}
+        {% set target_valid = is_number(target_val) %}
+        {% set state_valid = states(t) not in ['unknown', 'unavailable'] %}
+        {% set items = items + [{
+          'thermostat': t,
+          'sensor': s if use_sensor else '',
+          'use_sensor': use_sensor,
+          'state_valid': state_valid,
+          'current': (current_val | float) if current_valid else none,
+          'current_valid': current_valid,
+          'target': (target_val | float) if target_valid else none,
+          'target_valid': target_valid,
+          'hvac_mode': states(t)
+        }] %}
+      {% endif %}
+    {% endfor %}
+    {{ items }}
 
   room_readings_valid: >-
     {% set ns = namespace(valid=true) %}
-    {% for entity_id in room_entities %}
-      {% set entity_state = states(entity_id) %}
-      {% if entity_state in ['unknown', 'unavailable'] %}
-        {% set ns.valid = false %}
-      {% elif not is_number(state_attr(entity_id, 'current_temperature'))
-            or not is_number(state_attr(entity_id, 'temperature')) %}
+    {% for room in active_rooms %}
+      {% if not room.state_valid or not room.current_valid or not room.target_valid %}
         {% set ns.valid = false %}
       {% endif %}
     {% endfor %}
@@ -178,15 +322,12 @@ variables:
 
   room_needs_heat: >-
     {% set ns = namespace(demand=false) %}
-    {% for entity_id in room_entities %}
-      {% set entity_state = states(entity_id) %}
-      {% set current = state_attr(entity_id, 'current_temperature') %}
-      {% set target = state_attr(entity_id, 'temperature') %}
-      {% if entity_state not in ['off', 'unknown', 'unavailable']
-            and is_number(current)
-            and is_number(target)
-            and (current | float)
-                < ((target | float) - (room_margin_value | float)) %}
+    {% for room in active_rooms %}
+      {% if room.state_valid
+            and room.current_valid
+            and room.target_valid
+            and room.hvac_mode != 'off'
+            and room.current < (room.target - (room_margin_value | float)) %}
         {% set ns.demand = true %}
       {% endif %}
     {% endfor %}
@@ -220,7 +361,7 @@ variables:
       {% set desired = (current | float) + (call_boost_value | float) %}
       {% set rounded_up = ((desired / step) | round(0, 'ceil')) * step %}
       {% set aligned_cap = ((cap / step) | round(0, 'floor')) * step %}
-      {{ [rounded_up, aligned_cap] | min }}
+      {{ ([rounded_up, aligned_cap] | min) | round(2) }}
     {% else %}
       0
     {% endif %}
@@ -230,14 +371,13 @@ actions:
       - conditions:
           - condition: template
             value_template: >-
-              {{ room_entities | count > 0
+              {{ active_rooms | count > 0
                  and room_readings_valid
                  and room_needs_heat
                  and states(boiler_entity) not in ['unknown', 'unavailable']
                  and 'heat' in (state_attr(boiler_entity, 'hvac_modes') or [])
                  and is_number(central_current_temperature)
-                 and (boiler_call_target | float)
-                     > (central_current_temperature | float) }}
+                 and (boiler_call_target | float) > (central_current_temperature | float) }}
         sequence:
           - if:
               - condition: template
@@ -245,8 +385,7 @@ actions:
                   {% set current_target = state_attr(boiler_entity, 'temperature') %}
                   {{ states(boiler_entity) != 'heat'
                      or not is_number(current_target)
-                     or ((current_target | float
-                          - (boiler_call_target | float)) | abs) > 0.05 }}
+                     or (((current_target | float) - (boiler_call_target | float)) | abs) > 0.05 }}
             then:
               - action: climate.set_temperature
                 target:
@@ -258,7 +397,7 @@ actions:
       - conditions:
           - condition: template
             value_template: >-
-              {{ room_entities | count > 0
+              {{ active_rooms | count > 0
                  and room_readings_valid
                  and not room_needs_heat
                  and states(boiler_entity) not in ['unknown', 'unavailable']
