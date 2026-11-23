@@ -1,6 +1,5 @@
 blueprint:
-  name: blueprint:
-  name: 🥶 Boiler Demand Controller via Radiator Thermostats
+  name: "🥶 Boiler Demand Controller via Radiator Thermostats"
   description: >
     Controls a boiler-connected central climate thermostat based on heat demand
     from up to 10 optional radiator thermostat climate entities and optional
