@@ -5,8 +5,8 @@ blueprint:
     radiator climate entities. Optional room temperature sensors can replace
     the radiator entities' current_temperature readings.
   domain: automation
-  min_version: "2024.10.0"
-
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     central_thermostat:
       name: Boiler-connected central thermostat
