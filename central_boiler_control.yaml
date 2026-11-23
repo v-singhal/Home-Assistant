@@ -1,5 +1,5 @@
 blueprint:
-  name: Boiler demand from radiator thermostats
+  name: 🥶🌡️ Boiler demand from radiator thermostats
   description: >
     Controls a central boiler-connected climate thermostat from up to 10
     radiator climate entities. Optional room temperature sensors can replace
