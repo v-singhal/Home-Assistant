@@ -1,9 +1,11 @@
 blueprint:
   name: 🥶🌡️ Boiler demand from radiator thermostats
-  description: >
+  description: >-
     Controls a central boiler-connected climate thermostat from up to 10
-    radiator climate entities. Optional room temperature sensors can replace
-    radiator entities' current_temperature readings.
+    radiator climate entities. Optional paired room temperature sensors can
+    replace a radiator entity's current_temperature reading. After a trigger,
+    the blueprint waits for the configured debounce interval and then evaluates
+    the latest entity states.
   domain: automation
   homeassistant:
     min_version: "2024.10.0"
@@ -187,13 +189,11 @@ blueprint:
               domain: sensor
 
     temperature_settings:
-      name: Temperature settings
+      name: Temperature and timing settings
       input:
         room_temperature_margin:
           name: Room temperature margin
-          description: >
-            A room needs heat when its measured temperature is below its
-            thermostat target minus this margin.
+          description: A room needs heat below its target minus this margin.
           default: 0.5
           selector:
             number:
@@ -205,13 +205,11 @@ blueprint:
 
         central_temperature_boost:
           name: Central thermostat boost
-          description: >
-            Added to the central thermostat's measured temperature when
-            calculating its requested target.
+          description: Added to the central thermostat's measured temperature.
           default: 2
           selector:
             number:
-              min: 0.1
+              min: 0
               max: 20
               step: 0.1
               mode: box
@@ -219,7 +217,7 @@ blueprint:
 
         central_maximum_target:
           name: Central thermostat maximum target
-          description: >
+          description: Set within the central thermostat's supported range.
             Upper cap for the target sent to the central thermostat. Set this
             within that thermostat's supported temperature range.
           default: 25
@@ -230,6 +228,20 @@ blueprint:
               step: 0.1
               mode: box
               unit_of_measurement: "°"
+
+        debounce_seconds:
+          name: Debounce delay
+          description: >-
+            Wait this many seconds after a trigger, then evaluate the latest
+            readings. Changes during the wait are coalesced.
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 120
+              step: 1
+              mode: box
+              unit_of_measurement: seconds
 
 variables:
   central: !input central_thermostat
@@ -261,6 +273,7 @@ variables:
   margin: !input room_temperature_margin
   boost: !input central_temperature_boost
   maximum_target: !input central_maximum_target
+  debounce: !input debounce_seconds
 
   selected_radiators: >-
     {{ radiator_entities
@@ -268,190 +281,173 @@ variables:
        | reject('equalto', none)
        | list }}
 
-  rooms_valid: >-
-    {% set ns = namespace(ok=true) %}
-    {% for i in range(radiator_entities | length) %}
-      {% set radiator = radiator_entities[i] %}
-      {% if radiator not in ['', none] %}
-        {% set mode = states(radiator) %}
-        {% if mode in ['unknown', 'unavailable'] %}
-          {% set ns.ok = false %}
-        {% elif mode != 'off' %}
-          {% set target = state_attr(radiator, 'temperature') %}
-          {% set sensor = room_sensors[i] %}
-          {% if sensor not in ['', none] %}
-            {% set measured = states(sensor) %}
-          {% else %}
-            {% set measured = state_attr(radiator, 'current_temperature') %}
-          {% endif %}
-          {% if not is_number(target) or not is_number(measured) %}
-            {% set ns.ok = false %}
-          {% endif %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
-    {{ ns.ok }}
-
-  room_heat_target: >-
-    {% set ns = namespace(target=none) %}
-    {% for i in range(radiator_entities | length) %}
-      {% set radiator = radiator_entities[i] %}
-      {% if radiator not in ['', none]
-            and states(radiator) not in ['off', 'unknown', 'unavailable'] %}
-        {% set requested = state_attr(radiator, 'temperature') %}
-        {% set sensor = room_sensors[i] %}
-        {% if sensor not in ['', none] %}
-          {% set measured = states(sensor) %}
-        {% else %}
-          {% set measured = state_attr(radiator, 'current_temperature') %}
-        {% endif %}
-        {% if is_number(requested) and is_number(measured)
-              and (measured | float) < ((requested | float) - (margin | float)) %}
-          {% if ns.target is none or (requested | float) > ns.target %}
-            {% set ns.target = requested | float %}
-          {% endif %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
-    {{ ns.target }}
-
-  central_temperature: "{{ state_attr(central, 'current_temperature') }}"
-
-  desired_central_target: >-
-    {% if is_number(room_heat_target) and is_number(central_temperature) %}
-      {{ [[(room_heat_target | float),
-           ((central_temperature | float) + (boost | float))] | max,
-         (maximum_target | float)] | min | round(1) }}
-    {% else %}
-      {{ none }}
-    {% endif %}
-
 triggers:
   - trigger: homeassistant
     event: start
-    id: startup
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input central_thermostat
-    id: central_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_1
-    id: radiator_1_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_1
-    id: sensor_1_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_2
-    id: radiator_2_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_2
-    id: sensor_2_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_3
-    id: radiator_3_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_3
-    id: sensor_3_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_4
-    id: radiator_4_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_4
-    id: sensor_4_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_5
-    id: radiator_5_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_5
-    id: sensor_5_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_6
-    id: radiator_6_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_6
-    id: sensor_6_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_7
-    id: radiator_7_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_7
-    id: sensor_7_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_8
-    id: radiator_8_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_8
-    id: sensor_8_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_9
-    id: radiator_9_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_9
-    id: sensor_9_change
 
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input radiator_10
-    id: radiator_10_change
   - trigger: event
     event_type: state_changed
     event_data:
       entity_id: !input temperature_sensor_10
-    id: sensor_10_change
 
 conditions:
   - condition: template
-    value_template: "{{ selected_radiators | count > 0 }}"
+    value_template: "{{ selected_radiators | length > 0 }}"
 
 actions:
+  - delay:
+      seconds: "{{ debounce | int(10) }}"
+
+  - variables:
+      rooms_valid: >-
+        {% set ns = namespace(ok=true) %}
+        {% for i in range(radiator_entities | length) %}
+          {% set radiator = radiator_entities[i] %}
+          {% if radiator not in ['', none] %}
+            {% set mode = states(radiator) %}
+            {% if mode in ['unknown', 'unavailable'] %}
+              {% set ns.ok = false %}
+            {% elif mode != 'off' %}
+              {% set target = state_attr(radiator, 'temperature') %}
+              {% set sensor = room_sensors[i] %}
+              {% if sensor not in ['', none] %}
+                {% set measured = states(sensor) %}
+              {% else %}
+                {% set measured = state_attr(radiator, 'current_temperature') %}
+              {% endif %}
+              {% if not is_number(target) or not is_number(measured) %}
+                {% set ns.ok = false %}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.ok }}
+
+      room_heat_target: >-
+        {% set ns = namespace(target=none) %}
+        {% for i in range(radiator_entities | length) %}
+          {% set radiator = radiator_entities[i] %}
+          {% if radiator not in ['', none]
+                and states(radiator) not in ['off', 'unknown', 'unavailable'] %}
+            {% set requested = state_attr(radiator, 'temperature') %}
+            {% set sensor = room_sensors[i] %}
+            {% if sensor not in ['', none] %}
+              {% set measured = states(sensor) %}
+            {% else %}
+              {% set measured = state_attr(radiator, 'current_temperature') %}
+            {% endif %}
+            {% if is_number(requested) and is_number(measured)
+                  and (measured | float) < ((requested | float) - (margin | float)) %}
+              {% if ns.target is none or (requested | float) > ns.target %}
+                {% set ns.target = requested | float %}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.target }}
+
+      central_temperature: "{{ state_attr(central, 'current_temperature') }}"
+
+  - variables:
+      desired_central_target: >-
+        {% if is_number(room_heat_target) and is_number(central_temperature) %}
+          {{ [[(room_heat_target | float),
+               ((central_temperature | float) + (boost | float))] | max,
+             (maximum_target | float)] | min }}
+        {% else %}
+          {{ none }}
+        {% endif %}
+
   - choose:
       - conditions:
           - condition: template
@@ -484,7 +480,7 @@ actions:
                 target:
                   entity_id: "{{ central }}"
                 data:
-                  temperature: "{{ desired_central_target }}"
+                  temperature: "{{ desired_central_target | float }}"
 
       - conditions:
           - condition: template
