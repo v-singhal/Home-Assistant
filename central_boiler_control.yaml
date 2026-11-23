@@ -1,5 +1,5 @@
 blueprint:
-  name: 🥵🥶 Boiler heat demand from radiator thermostats
+  name: 🥵🥶 Boiler heat demand from radiators
   description: >
     Uses selected radiator climate entities as room-demand inputs and a
     boiler-connected climate thermostat to call for heat. Each radiator
@@ -211,36 +211,8 @@ triggers:
   - trigger: state
     entity_id: !input boiler_thermostat
     attribute: current_temperature
-  - trigger: template
-    value_template: >-
-      {% set margin = ('!input room_margin' | float) %}
-      {% set pairs = [
-        ('!input room_thermostat_1', '!input room_temp_sensor_1'),
-        ('!input room_thermostat_2', '!input room_temp_sensor_2'),
-        ('!input room_thermostat_3', '!input room_temp_sensor_3'),
-        ('!input room_thermostat_4', '!input room_temp_sensor_4'),
-        ('!input room_thermostat_5', '!input room_temp_sensor_5'),
-        ('!input room_thermostat_6', '!input room_temp_sensor_6'),
-        ('!input room_thermostat_7', '!input room_temp_sensor_7'),
-        ('!input room_thermostat_8', '!input room_temp_sensor_8'),
-        ('!input room_thermostat_9', '!input room_temp_sensor_9'),
-        ('!input room_thermostat_10', '!input room_temp_sensor_10')
-      ] %}
-      {% set ns = namespace(demand=false) %}
-      {% for t, s in pairs %}
-        {% if t not in ['', none] and states(t) not in ['off', 'unknown', 'unavailable'] %}
-          {% set use_s = (s not in ['', none]) %}
-          {% set cur = states(s) if use_s else state_attr(t, 'current_temperature') %}
-          {% set tgt = state_attr(t, 'temperature') %}
-          {% if (not use_s or states(s) not in ['unknown', 'unavailable'])
-                and is_number(cur)
-                and is_number(tgt)
-                and (cur | float) < ((tgt | float) - margin) %}
-            {% set ns.demand = true %}
-          {% endif %}
-        {% endif %}
-      {% endfor %}
-      {{ ns.demand }}
+  - trigger: time_pattern
+    minutes: "/1"
 
 variables:
   boiler_entity: !input boiler_thermostat
