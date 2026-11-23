@@ -5,7 +5,8 @@ blueprint:
     from up to 10 optional radiator thermostat climate entities and optional
     room temperature sensors. Does not require helper entities.
   domain: automation
-  min_version: 2024.10.0
+  homeassistant:
+    min_version: 2024.10.0
   input:
     central_thermostat:
       name: Central Boiler Thermostat
