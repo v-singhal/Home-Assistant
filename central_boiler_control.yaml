@@ -1,5 +1,5 @@
 blueprint:
-  name: 🥶🌡️ Boiler control with radiator demand and paired thermostat sync
+  name: 🥶🌡️ [Thermostat] Central boiler control with radiator demand and paired thermostat sync
   description: >
     Controls a central boiler-connected climate thermostat from up to ten
     radiator thermostats. Optionally synchronizes HVAC mode and target
