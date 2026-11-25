@@ -15,6 +15,21 @@ blueprint:
         entity:
           domain: climate
 
+    paired_radiator:
+      name: Paired radiator thermostat
+      description: Optional climate entity to synchronize with the central thermostat.
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    sync_helper:
+      name: Automation-change helper
+      description: Select the input_boolean used to prevent synchronization loops.
+      selector:
+        entity:
+          domain: input_boolean
+
     radiator_1:
       name: Radiator thermostat 1
       default: ""
@@ -28,6 +43,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_2:
       name: Radiator thermostat 2
@@ -41,6 +57,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_3:
       name: Radiator thermostat 3
@@ -54,6 +71,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_4:
       name: Radiator thermostat 4
@@ -67,6 +85,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_5:
       name: Radiator thermostat 5
@@ -80,6 +99,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_6:
       name: Radiator thermostat 6
@@ -93,6 +113,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_7:
       name: Radiator thermostat 7
@@ -106,6 +127,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_8:
       name: Radiator thermostat 8
@@ -119,6 +141,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_9:
       name: Radiator thermostat 9
@@ -132,6 +155,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     radiator_10:
       name: Radiator thermostat 10
@@ -145,6 +169,7 @@ blueprint:
       selector:
         entity:
           domain: sensor
+          device_class: temperature
 
     temperature_margin:
       name: Temperature margin
@@ -192,25 +217,14 @@ blueprint:
           mode: box
           unit_of_measurement: seconds
 
-    paired_radiator:
-      name: Paired radiator thermostat
-      description: Optional thermostat to synchronize with the central thermostat.
-      default: ""
-      selector:
-        entity:
-          domain: climate
-
-    sync_helper:
-      name: Automation-change helper
-      description: >
-        Select an input_boolean. If it is on when a relevant climate change
-        is checked, it is reset to off and synchronization is skipped.
-      selector:
-        entity:
-          domain: input_boolean
-
 variables:
   central_entity: !input central_thermostat
+  paired_entity: !input paired_radiator
+  sync_helper_entity: !input sync_helper
+  margin: !input temperature_margin
+  boost: !input central_boost
+  configured_max: !input maximum_central_temperature
+  debounce: !input debounce_seconds
 
   radiator_1_entity: !input radiator_1
   radiator_2_entity: !input radiator_2
@@ -234,13 +248,6 @@ variables:
   radiator_9_sensor_entity: !input radiator_9_sensor
   radiator_10_sensor_entity: !input radiator_10_sensor
 
-  paired_entity: !input paired_radiator
-  sync_helper_entity: !input sync_helper
-  margin: !input temperature_margin
-  boost: !input central_boost
-  configured_max: !input maximum_central_temperature
-  debounce: !input debounce_seconds
-
   radiators_raw: >-
     {{ [
       radiator_1_entity, radiator_2_entity, radiator_3_entity, radiator_4_entity,
@@ -255,10 +262,7 @@ variables:
       radiator_10_sensor_entity
     ] }}
   monitored_thermostats: >-
-    {{ radiators_raw
-       | reject('equalto', '')
-       | reject('equalto', paired_entity)
-       | list }}
+    {{ radiators_raw | reject('equalto', '') | list }}
   watched_entities: >-
     {{ ([central_entity, paired_entity] + radiators_raw + sensors_raw)
        | reject('equalto', '') | list }}
@@ -294,8 +298,7 @@ action:
   - delay:
       seconds: "{{ debounce | int(0) }}"
 
-  # If a prior automation-generated change set the helper, reset it and
-  # skip synchronization for this event.
+  # If the helper is already on, reset it and skip sync for this event.
   - choose:
       - conditions:
           - condition: template
@@ -305,17 +308,21 @@ action:
             target:
               entity_id: "{{ sync_helper_entity }}"
 
-      # Synchronize only changes from the central thermostat or paired
-      # thermostat. Other monitored radiator thermostats cannot initiate
-      # a change to the paired thermostat.
+      # Sync only central or paired thermostat changes. Other radiator
+      # thermostats do not initiate synchronization.
       - conditions:
           - condition: template
             value_template: >-
               {{ trigger.id == 'entity_event'
                  and paired_entity != ''
                  and is_state(sync_helper_entity, 'off')
-                 and trigger.event.data.entity_id in [central_entity, paired_entity]
-                 and trigger.event.data.entity_id not in monitored_thermostats }}
+                 and (
+                   (
+                     trigger.event.data.entity_id == central_entity
+                     and trigger.event.data.entity_id not in monitored_thermostats
+                   )
+                   or trigger.event.data.entity_id == paired_entity
+                 ) }}
         sequence:
           - variables:
               sync_source: >-
@@ -327,7 +334,6 @@ action:
                    if trigger.event.data.entity_id == central_entity
                    else central_entity }}
 
-          # Copy the HVAC mode only if it differs and the source is available.
           - choose:
               - conditions:
                   - condition: template
@@ -344,7 +350,6 @@ action:
                     data:
                       hvac_mode: "{{ states(sync_source) }}"
 
-          # Copy the target temperature only when it differs by more than 0.05°.
           - choose:
               - conditions:
                   - condition: template
@@ -444,8 +449,6 @@ action:
                          * (central_target_step | float) %}
         {{ [rounded, effective_maximum | float] | min }}
 
-  # Do not change the central thermostat if no radiator is selected, any
-  # selected radiator has unusable data, or central temperature is unavailable.
   - choose:
       - conditions:
           - condition: template
