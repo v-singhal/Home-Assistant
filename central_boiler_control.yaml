@@ -23,7 +23,7 @@ blueprint:
           domain: climate
     radiator_1_sensor:
       name: Radiator 1 external temperature sensor
-      description: Optional; when selected, replaces the thermostat's current_temperature.
+      description: Optional; replaces the thermostat's current_temperature.
       default: ""
       selector:
         entity:
@@ -194,7 +194,7 @@ blueprint:
 
     paired_radiator:
       name: Paired radiator thermostat
-      description: Optional thermostat to synchronize bidirectionally with the central thermostat.
+      description: Optional thermostat to synchronize with the central thermostat.
       default: ""
       selector:
         entity:
@@ -203,9 +203,8 @@ blueprint:
     sync_helper:
       name: Automation-change helper
       description: >
-        Select an input_boolean. When this helper is on, the next relevant
-        climate change is treated as automation-generated and the helper is
-        reset to off without syncing.
+        Select an input_boolean. If it is on when a relevant climate change
+        is checked, it is reset to off and synchronization is skipped.
       selector:
         entity:
           domain: input_boolean
@@ -255,6 +254,11 @@ variables:
       radiator_7_sensor_entity, radiator_8_sensor_entity, radiator_9_sensor_entity,
       radiator_10_sensor_entity
     ] }}
+  monitored_thermostats: >-
+    {{ radiators_raw
+       | reject('equalto', '')
+       | reject('equalto', paired_entity)
+       | list }}
   watched_entities: >-
     {{ ([central_entity, paired_entity] + radiators_raw + sensors_raw)
        | reject('equalto', '') | list }}
@@ -290,8 +294,8 @@ action:
   - delay:
       seconds: "{{ debounce | int(0) }}"
 
-  # A helper that is already on marks the climate change as automation-generated.
-  # Reset it and skip synchronization for this run.
+  # If a prior automation-generated change set the helper, reset it and
+  # skip synchronization for this event.
   - choose:
       - conditions:
           - condition: template
@@ -301,16 +305,17 @@ action:
             target:
               entity_id: "{{ sync_helper_entity }}"
 
-      # A manual change to either paired thermostat copies mode and setpoint
-      # to the other thermostat. The helper remains on until the resulting
-      # climate state change consumes and resets it.
+      # Synchronize only changes from the central thermostat or paired
+      # thermostat. Other monitored radiator thermostats cannot initiate
+      # a change to the paired thermostat.
       - conditions:
           - condition: template
             value_template: >-
               {{ trigger.id == 'entity_event'
                  and paired_entity != ''
+                 and is_state(sync_helper_entity, 'off')
                  and trigger.event.data.entity_id in [central_entity, paired_entity]
-                 and is_state(sync_helper_entity, 'off') }}
+                 and trigger.event.data.entity_id not in monitored_thermostats }}
         sequence:
           - variables:
               sync_source: >-
@@ -322,35 +327,39 @@ action:
                    if trigger.event.data.entity_id == central_entity
                    else central_entity }}
 
-          - service: input_boolean.turn_on
-            target:
-              entity_id: "{{ sync_helper_entity }}"
-
+          # Copy the HVAC mode only if it differs and the source is available.
           - choose:
               - conditions:
                   - condition: template
                     value_template: >-
-                      {{ states(sync_source) not in ['unknown', 'unavailable', ''] }}
-                  - condition: template
-                    value_template: >-
-                      {{ states(sync_source) != states(sync_destination) }}
+                      {{ states(sync_source) not in ['unknown', 'unavailable', '']
+                         and states(sync_source) != states(sync_destination) }}
                 sequence:
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: "{{ sync_helper_entity }}"
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: "{{ sync_destination }}"
                     data:
                       hvac_mode: "{{ states(sync_source) }}"
 
+          # Copy the target temperature only when it differs by more than 0.05°.
           - choose:
               - conditions:
                   - condition: template
                     value_template: >-
                       {{ is_number(state_attr(sync_source, 'temperature'))
-                         and is_number(state_attr(sync_destination, 'temperature'))
-                         and
-                         (state_attr(sync_source, 'temperature')
-                          - state_attr(sync_destination, 'temperature')) | abs > 0.05 }}
+                         and (
+                           not is_number(state_attr(sync_destination, 'temperature'))
+                           or
+                           (state_attr(sync_source, 'temperature')
+                            - state_attr(sync_destination, 'temperature')) | abs > 0.05
+                         ) }}
                 sequence:
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: "{{ sync_helper_entity }}"
                   - service: climate.set_temperature
                     target:
                       entity_id: "{{ sync_destination }}"
@@ -363,6 +372,7 @@ action:
   - variables:
       selected_radiator_count: >-
         {{ radiators_raw | reject('equalto', '') | list | length }}
+
       radiator_data_invalid: >-
         {% set ns = namespace(invalid=false) %}
         {% for index in range(0, 10) %}
@@ -386,6 +396,7 @@ action:
           {% endif %}
         {% endfor %}
         {{ ns.invalid }}
+
       room_demands: >-
         {% set ns = namespace(demands=[]) %}
         {% for index in range(0, 10) %}
@@ -405,31 +416,36 @@ action:
           {% endif %}
         {% endfor %}
         {{ ns.demands }}
+
       central_current_temperature: >-
         {{ state_attr(central_entity, 'current_temperature') }}
+
       device_maximum: >-
         {{ state_attr(central_entity, 'max_temp') }}
+
       effective_maximum: >-
         {% if is_number(device_maximum) %}
           {{ [configured_max | float, device_maximum | float] | min }}
         {% else %}
           {{ configured_max | float }}
         {% endif %}
+
       raw_central_target: >-
         {% set current = central_current_temperature | float(0) %}
         {% set highest_room_target = (room_demands | max) if room_demands | length > 0 else current %}
         {{ [highest_room_target, current + (boost | float)] | max }}
+
       central_target_step: >-
         {% set step = state_attr(central_entity, 'target_temp_step') | float(0.1) %}
         {{ step if step > 0 else 0.1 }}
+
       rounded_central_target: >-
         {% set rounded = ((raw_central_target | float / central_target_step | float) | round(0))
                          * (central_target_step | float) %}
         {{ [rounded, effective_maximum | float] | min }}
 
-  # Do not alter the central thermostat when no radiators are selected,
-  # any selected radiator has unusable required data, or central temperature
-  # is unavailable.
+  # Do not change the central thermostat if no radiator is selected, any
+  # selected radiator has unusable data, or central temperature is unavailable.
   - choose:
       - conditions:
           - condition: template
