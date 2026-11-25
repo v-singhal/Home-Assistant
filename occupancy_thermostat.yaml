@@ -1,5 +1,5 @@
 blueprint:
-  name: "🌡️ Occupancy-Based Thermostat Cycle"
+  name: "🥶🌡️ Occupancy-Based Thermostat Cycle"
   description: >
     After occupancy is detected for the selected delay, turn on the thermostat
     in the selected heat or cool mode and set the first target temperature.
