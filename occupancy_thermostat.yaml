@@ -5,8 +5,7 @@ blueprint:
     in the selected heat or cool mode and set the first target temperature.
     When the room temperature reaches each target, wait the selected hold time
     and alternate to the other target. When occupancy clears for the selected
-    delay, turn the thermostat off. Optionally turn on a boolean helper after
-    successful thermostat actions.
+    delay, turn the thermostat off.
   domain: automation
 
   input:
@@ -37,17 +36,6 @@ blueprint:
           filter:
             - domain: sensor
               device_class: temperature
-
-    completion_boolean:
-      name: Completion boolean helper (optional)
-      description: >
-        Turn this input_boolean on after successful thermostat actions.
-        It is not turned off automatically.
-      default: ""
-      selector:
-        entity:
-          filter:
-            - domain: input_boolean
 
     occupied_delay:
       name: Delay after occupancy is detected
@@ -110,7 +98,6 @@ blueprint:
 variables:
   climate_entity: !input thermostat
   room_temperature_sensor: !input room_temperature_sensor
-  completion_boolean: !input completion_boolean
   active_hvac_mode: !input occupied_hvac_mode
   first_target: !input target_temperature
   second_target: !input secondary_target_temperature
@@ -151,15 +138,6 @@ action:
               entity_id: !input thermostat
             data:
               temperature: "{{ cycle_target }}"
-
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ completion_boolean not in [none, ''] }}"
-                sequence:
-                  - action: input_boolean.turn_on
-                    target:
-                      entity_id: "{{ completion_boolean }}"
 
           - repeat:
               while:
@@ -202,15 +180,6 @@ action:
                   data:
                     temperature: "{{ cycle_target }}"
 
-                - choose:
-                    - conditions:
-                        - condition: template
-                          value_template: "{{ completion_boolean not in [none, ''] }}"
-                      sequence:
-                        - action: input_boolean.turn_on
-                          target:
-                            entity_id: "{{ completion_boolean }}"
-
       - conditions:
           - condition: trigger
             id: unoccupied
@@ -219,20 +188,10 @@ action:
           - condition: state
             entity_id: !input presence_sensor
             state: "off"
-
           - action: climate.set_hvac_mode
             target:
               entity_id: !input thermostat
             data:
               hvac_mode: "off"
-
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ completion_boolean not in [none, ''] }}"
-                sequence:
-                  - action: input_boolean.turn_on
-                    target:
-                      entity_id: "{{ completion_boolean }}"
 
 mode: restart
