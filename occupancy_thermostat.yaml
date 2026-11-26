@@ -99,6 +99,19 @@ blueprint:
       selector:
         action: {}
 
+    operating_hvac_mode:
+      name: HVAC mode when occupied
+      description: Choose a mode supported by your thermostat.
+      default: heat
+      selector:
+        select:
+          options:
+            - label: Heat
+              value: heat
+            - label: Heat / Cool
+              value: heat_cool
+          mode: dropdown
+
 variables:
   climate_entity: !input thermostat
   room_temperature_sensor: !input room_temperature_sensor
