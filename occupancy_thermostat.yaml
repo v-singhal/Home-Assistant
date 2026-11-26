@@ -62,7 +62,7 @@ blueprint:
         select:
           options:
             - heat
-            - heat/cool
+            - heat_cool
             - cool
           mode: dropdown
 
