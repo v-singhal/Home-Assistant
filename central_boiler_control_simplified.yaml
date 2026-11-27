@@ -1,0 +1,271 @@
+blueprint:
+  name: 🥶🌡️ [Thermostat] Central boiler target from active smart TRVs
+  description: >-
+    Sets a central boiler-connected climate thermostat to the highest target
+    temperature among selected active radiator thermostats. A TRV is active
+    when its climate mode is not off. If all selected TRVs are off, the central
+    thermostat is turned off. A configurable delay coalesces closely spaced
+    updates before the automation evaluates the latest states.
+  domain: automation
+  author: OpenAI
+  homeassistant:
+    min_version: "2024.10.0"
+
+  input:
+    central_thermostat:
+      name: Boiler-connected central thermostat
+      selector:
+        entity:
+          domain: climate
+
+    radiator_1:
+      name: Radiator thermostat 1
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_2:
+      name: Radiator thermostat 2
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_3:
+      name: Radiator thermostat 3
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_4:
+      name: Radiator thermostat 4
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_5:
+      name: Radiator thermostat 5
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_6:
+      name: Radiator thermostat 6
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_7:
+      name: Radiator thermostat 7
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_8:
+      name: Radiator thermostat 8
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_9:
+      name: Radiator thermostat 9
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    radiator_10:
+      name: Radiator thermostat 10
+      default: ""
+      selector:
+        entity:
+          domain: climate
+
+    debounce_seconds:
+      name: Debounce delay
+      description: >-
+        Wait this many seconds after a trigger, then evaluate the latest
+        thermostat states and targets.
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 120
+          step: 1
+          mode: box
+          unit_of_measurement: seconds
+
+variables:
+  central: !input central_thermostat
+  radiators:
+    - !input radiator_1
+    - !input radiator_2
+    - !input radiator_3
+    - !input radiator_4
+    - !input radiator_5
+    - !input radiator_6
+    - !input radiator_7
+    - !input radiator_8
+    - !input radiator_9
+    - !input radiator_10
+  debounce: !input debounce_seconds
+  selected_radiators: >-
+    {{ radiators | reject('equalto', '') | reject('equalto', none) | list }}
+
+triggers:
+  - trigger: homeassistant
+    event: start
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input central_thermostat
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_1
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_2
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_3
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_4
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_5
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_6
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_7
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_8
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_9
+
+  - trigger: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input radiator_10
+
+conditions:
+  - condition: template
+    value_template: "{{ selected_radiators | length > 0 }}"
+
+actions:
+  - delay:
+      seconds: "{{ debounce | int(10) }}"
+
+  - variables:
+      inputs_valid: >-
+        {% set ns = namespace(ok=true) %}
+        {% for radiator in radiators %}
+          {% if radiator not in ['', none] %}
+            {% set mode = states(radiator) %}
+            {% if mode in ['unknown', 'unavailable'] %}
+              {% set ns.ok = false %}
+            {% elif mode != 'off' %}
+              {% set target = state_attr(radiator, 'temperature') %}
+              {% if not is_number(target) %}
+                {% set ns.ok = false %}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.ok }}
+
+      active_target: >-
+        {% set ns = namespace(target=none) %}
+        {% for radiator in radiators %}
+          {% if radiator not in ['', none]
+                and states(radiator) not in ['off', 'unknown', 'unavailable'] %}
+            {% set target = state_attr(radiator, 'temperature') %}
+            {% if is_number(target)
+                  and (ns.target is none or (target | float) > ns.target) %}
+              {% set ns.target = target | float %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.target }}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ (inputs_valid | bool)
+                 and is_number(active_target)
+                 and states(central) not in ['unknown', 'unavailable']
+                 and 'heat' in (state_attr(central, 'hvac_modes') or []) }}
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ states(central) != 'heat' }}"
+            then:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: "{{ central }}"
+                data:
+                  hvac_mode: heat
+
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ not is_number(state_attr(central, 'temperature'))
+                     or ((state_attr(central, 'temperature') | float)
+                         - (active_target | float)) | abs > 0.05 }}
+            then:
+              - action: climate.set_temperature
+                target:
+                  entity_id: "{{ central }}"
+                data:
+                  temperature: "{{ active_target | float }}"
+
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ (inputs_valid | bool)
+                 and not is_number(active_target)
+                 and states(central) not in ['unknown', 'unavailable']
+                 and 'off' in (state_attr(central, 'hvac_modes') or []) }}
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ states(central) != 'off' }}"
+            then:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: "{{ central }}"
+                data:
+                  hvac_mode: "off"
+
+mode: single
