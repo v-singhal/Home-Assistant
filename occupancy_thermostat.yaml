@@ -1,5 +1,5 @@
 blueprint:
-  name: "🌡️ [Thermostat] Occupancy-Based Thermostat Control"
+  name: "🌡️🥶 [Thermostat] Occupancy-Based Thermostat Control"
   description: >
     Controls a thermostat or TRV based on occupancy. With an external room
     temperature sensor, increases the TRV setpoint in 0.5°C / 0.9°F steps
