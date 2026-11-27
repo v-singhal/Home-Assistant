@@ -1,10 +1,10 @@
 blueprint:
   name: "🥶🌡️ [Thermostat] Central boiler target from SmartTRVs - Simplified"
   description: >
-    Controls a central boiler thermostat from up to 10 radiator thermostats.
-    Sets the central target to the highest active radiator target plus a boost,
-    capped at the configured maximum. Turns the central thermostat off when
-    all selected radiator thermostats are off.
+    Sets a central boiler thermostat to the highest active radiator
+    thermostat target plus a boost, capped at a maximum. Turns the central
+    thermostat off when all selected radiator thermostats are off. Select no
+    more than 10 radiator thermostats.
   domain: automation
   homeassistant:
     min_version: "2024.10.0"
@@ -18,7 +18,6 @@ blueprint:
 
     radiator_thermostats:
       name: Smart radiator thermostats
-      description: Select 1 to 10 climate entities.
       default: []
       selector:
         entity:
@@ -84,8 +83,15 @@ actions:
       maximum_target: !input central_thermostat_maximum_target
 
   - variables:
-      active_trvs: >-
-        {{ expand(trvs) | rejectattr('state', 'equalto', 'off') | list }}
+      active_count: >-
+        {% set ns = namespace(value=0) %}
+        {% for entity_id in trvs %}
+          {% if states(entity_id) != 'off' %}
+            {% set ns.value = ns.value + 1 %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.value }}
+
       invalid_trv_state: >-
         {% set ns = namespace(bad=false) %}
         {% for entity_id in trvs %}
@@ -95,23 +101,26 @@ actions:
         {% endfor %}
         {{ ns.bad }}
 
-  - variables:
       invalid_target: >-
         {% set ns = namespace(bad=false) %}
-        {% for trv in active_trvs %}
-          {% if not is_number(trv.attributes.get('temperature')) %}
+        {% for entity_id in trvs %}
+          {% if states(entity_id) != 'off'
+                and not is_number(state_attr(entity_id, 'temperature')) %}
             {% set ns.bad = true %}
           {% endif %}
         {% endfor %}
         {{ ns.bad }}
+
       highest_target: >-
         {% set ns = namespace(value=none) %}
-        {% for trv in active_trvs %}
-          {% set target = trv.attributes.get('temperature') %}
-          {% if is_number(target) %}
-            {% set target = target | float %}
-            {% if ns.value is none or target > ns.value %}
-              {% set ns.value = target %}
+        {% for entity_id in trvs %}
+          {% if states(entity_id) != 'off' %}
+            {% set target = state_attr(entity_id, 'temperature') %}
+            {% if is_number(target) %}
+              {% set target = target | float %}
+              {% if ns.value is none or target > ns.value %}
+                {% set ns.value = target %}
+              {% endif %}
             {% endif %}
           {% endif %}
         {% endfor %}
@@ -130,7 +139,7 @@ actions:
             value_template: >-
               {{ trvs | count <= 10
                  and (invalid_trv_state | string | trim | lower) != 'true'
-                 and active_trvs | count == 0 }}
+                 and (active_count | int) == 0 }}
         sequence:
           - if:
               - condition: template
@@ -148,7 +157,7 @@ actions:
               {{ trvs | count <= 10
                  and (invalid_trv_state | string | trim | lower) != 'true'
                  and (invalid_target | string | trim | lower) != 'true'
-                 and active_trvs | count > 0 }}
+                 and (active_count | int) > 0 }}
         sequence:
           - if:
               - condition: template
