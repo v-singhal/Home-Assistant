@@ -2,9 +2,10 @@ blueprint:
   name: "🥶🌡️ [Thermostat] Central boiler target from SmartTRVs - Simplified"
   description: >
     Controls a central boiler thermostat from up to 10 radiator thermostats.
-    The central target is the highest active TRV target plus a boost, capped
-    at the configured maximum. The central thermostat is turned off when all
-    selected TRVs are off.
+    The central target is the greater of the central thermostat's current
+    temperature plus a boost, or the highest active TRV target. The result is
+    capped at the configured maximum. The central thermostat is turned off
+    when all selected TRVs are off.
   domain: automation
   homeassistant:
     min_version: "2024.10.0"
@@ -27,7 +28,7 @@ blueprint:
 
     central_thermostat_boost:
       name: Central thermostat boost
-      description: Offset added to the highest active TRV target.
+      description: Added to the central thermostat's measured temperature.
       default: 2
       selector:
         number:
@@ -77,13 +78,14 @@ actions:
   - delay:
       seconds: !input debounce_delay
 
-  # Read the latest configuration and entity values after the debounce delay.
+  # Read inputs after the debounce delay.
   - variables:
       central: !input central_thermostat
       trvs: !input radiator_thermostats
       boost: !input central_thermostat_boost
       maximum_target: !input central_thermostat_maximum_target
 
+  # Calculate TRV status and the highest active TRV target from entity IDs.
   - variables:
       active_count: >-
         {% set ns = namespace(value=0) %}
@@ -128,15 +130,24 @@ actions:
         {% endfor %}
         {{ ns.value if ns.value is not none else 0 }}
 
+  # Use the central measured temperature, not its existing setpoint.
+  - variables:
+      central_current_temperature: "{{ state_attr(central, 'current_temperature') }}"
+
+  # target = min(max(central measured temperature + boost, highest TRV target),
+  #              configured maximum)
   - variables:
       target_to_send: >-
         {{ [
-          (highest_target | float) + (boost | float),
+          [
+            (central_current_temperature | float(0)) + (boost | float),
+            highest_target | float
+          ] | max,
           maximum_target | float
         ] | min | round(1) }}
 
   - choose:
-      # If no TRVs are active, turn the central thermostat off.
+      # No active TRVs: turn the central thermostat off.
       - conditions:
           - condition: template
             value_template: >-
@@ -154,13 +165,14 @@ actions:
                 data:
                   hvac_mode: "off"
 
-      # If TRVs are active and valid, turn heating on and set the target.
+      # Active TRVs with valid targets and a valid central temperature.
       - conditions:
           - condition: template
             value_template: >-
               {{ trvs | count <= 10
                  and (invalid_trv_state | string | trim | lower) != 'true'
                  and (invalid_target | string | trim | lower) != 'true'
+                 and is_number(central_current_temperature)
                  and (active_count | int) > 0 }}
         sequence:
           - if:
@@ -187,4 +199,3 @@ actions:
                   temperature: "{{ target_to_send }}"
 
 mode: single
-
