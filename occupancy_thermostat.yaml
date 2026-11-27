@@ -1,5 +1,7 @@
 blueprint:
   name: "🥶🌡️ [Thermostat] Occupancy-Based Thermostat Control"
+blueprint:
+  name: "🌡️ Occupancy-based thermostat control"
   description: >
     Controls a thermostat or TRV using occupancy. Optionally uses an external
     room-temperature sensor and raises the TRV setpoint in steps, capped at
@@ -13,9 +15,9 @@ blueprint:
         entity:
           filter:
             - domain: binary_sensor
-              device_class:
-                - occupancy
-                - presence
+              device_class: occupancy
+            - domain: binary_sensor
+              device_class: presence
 
     thermostat:
       name: Thermostat or TRV
@@ -195,9 +197,11 @@ action:
                     value_template: "{{ start_actions | length > 0 }}"
                 sequence: !input heating_start_actions
 
-  # This loop monitors occupancy and live temperature changes while the
-  # automation is running. It does not reset the iterative TRV setpoint.
+  # Monitor occupancy and live temperature changes while the automation runs.
   - repeat:
+      while:
+        - condition: template
+          value_template: "{{ true }}"
       sequence:
         - choose:
             # Occupancy is on: control heating according to the available sensors.
@@ -332,7 +336,7 @@ action:
 
                                 # At the cap, wait for the room to reach target
                                 # or occupancy to clear. Otherwise wait for the
-                                # next TRV/room/occupancy change.
+                                # next TRV, room, or occupancy change.
                                 - choose:
                                     - conditions:
                                         - condition: template
