@@ -5,9 +5,12 @@ blueprint:
     temperature sensor, increases the TRV setpoint in 0.5°C / 0.9°F steps
     when the TRV's measured temperature catches up, until the room reaches
     the occupied target. Without an external sensor, uses the TRV's own
-    measured temperature. The occupied setpoint is capped at 25°C or the
-    device's max_temp, whichever is lower.
+    measured temperature. Once the target is reached, heating is turned off
+    and temperature is monitored. If the room cools below target while still
+    occupied, heating resumes. Setpoints are capped at 25°C or the device's
+    max_temp, whichever is lower.
   domain: automation
+
   input:
     occupancy_sensor:
       name: Occupancy / presence sensor
@@ -78,7 +81,7 @@ blueprint:
             - domain: input_boolean
 
     heating_started_actions:
-      name: Actions when occupied heating starts
+      name: Actions when occupied heating starts or resumes
       default: []
       selector:
         action: {}
@@ -89,7 +92,7 @@ blueprint:
       selector:
         action: {}
 
-mode: restart
+mode: single
 max_exceeded: silent
 
 trigger:
@@ -131,201 +134,55 @@ variables:
   rounding_tolerance: "{{ 0.45 if is_fahrenheit else 0.25 }}"
 
 action:
-  - choose:
-      # Occupied: set mode and initial target, then monitor temperatures.
-      - conditions:
-          - condition: template
-            value_template: "{{ states(occupancy_entity) == 'on' }}"
-        sequence:
-          - delay: !input occupied_delay
-          - condition: template
-            value_template: "{{ states(occupancy_entity) == 'on' }}"
-
-          - action: climate.set_hvac_mode
-            target:
-              entity_id: !input thermostat
-            data:
-              hvac_mode: !input occupied_hvac_mode
-
-          - variables:
-              active_setpoint: "{{ occupied_target | float }}"
-
-          - action: climate.set_temperature
-            target:
-              entity_id: !input thermostat
-            data:
-              temperature: "{{ active_setpoint }}"
-
-          - sequence: !input heating_started_actions
-
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ completion_entity is not none and completion_entity != '' }}"
-                sequence:
-                  - action: input_boolean.turn_on
-                    target:
-                      entity_id: !input completion_helper
-
-          - repeat:
-              while:
+  - repeat:
+      while:
+        - condition: template
+          value_template: "{{ true }}"
+      sequence:
+        - choose:
+            # Occupancy is on: heat to target, then keep monitoring for cooldown.
+            - conditions:
                 - condition: template
-                  value_template: "{{ true }}"
+                  value_template: "{{ states(occupancy_entity) == 'on' }}"
               sequence:
-                # Read live entity states each time the wait condition wakes.
-                - wait_template: >-
-                    {% set trv = state_attr(thermostat_entity, 'current_temperature') | float(-999) %}
-                    {% set room_used = room_sensor_entity is not none
-                       and room_sensor_entity != '' %}
-                    {% if room_used %}
-                      {% set raw = states(room_sensor_entity) | float(-999) %}
-                      {% set unit = state_attr(room_sensor_entity, 'unit_of_measurement') %}
-                      {% if is_fahrenheit and unit in ['°C', 'C'] %}
-                        {% set room = raw * 9 / 5 + 32 %}
-                      {% elif not is_fahrenheit and unit in ['°F', 'F'] %}
-                        {% set room = (raw - 32) * 5 / 9 %}
-                      {% else %}
-                        {% set room = raw %}
-                      {% endif %}
-                      {{
-                        states(occupancy_entity) != 'on'
-                        or room >= occupied_target | float
-                        or trv >= active_setpoint | float - rounding_tolerance | float
-                      }}
-                    {% else %}
-                      {{
-                        states(occupancy_entity) != 'on'
-                        or trv >= occupied_target | float
-                      }}
-                    {% endif %}
+                - delay: !input occupied_delay
+                - condition: template
+                  value_template: "{{ states(occupancy_entity) == 'on' }}"
 
-                # Snapshot current readings for the decisions below.
+                - action: climate.set_hvac_mode
+                  target:
+                    entity_id: !input thermostat
+                  data:
+                    hvac_mode: !input occupied_hvac_mode
+
                 - variables:
-                    trv_now: >-
-                      {{ state_attr(thermostat_entity, 'current_temperature') | float(-999) }}
-                    room_sensor_used: >-
-                      {{ room_sensor_entity is not none and room_sensor_entity != '' }}
-                    room_now: >-
-                      {% if room_sensor_entity is none or room_sensor_entity == '' %}
-                        -999
-                      {% else %}
-                        {% set raw = states(room_sensor_entity) | float(-999) %}
-                        {% set unit = state_attr(room_sensor_entity, 'unit_of_measurement') %}
-                        {% if is_fahrenheit and unit in ['°C', 'C'] %}
-                          {{ raw * 9 / 5 + 32 }}
-                        {% elif not is_fahrenheit and unit in ['°F', 'F'] %}
-                          {{ (raw - 32) * 5 / 9 }}
-                        {% else %}
-                          {{ raw }}
-                        {% endif %}
-                      {% endif %}
+                    active_setpoint: "{{ occupied_target | float }}"
+
+                - action: climate.set_temperature
+                  target:
+                    entity_id: !input thermostat
+                  data:
+                    temperature: "{{ active_setpoint }}"
+
+                - sequence: !input heating_started_actions
 
                 - choose:
-                    # Occupancy cleared: wait, recheck, then turn HVAC off.
                     - conditions:
                         - condition: template
-                          value_template: "{{ states(occupancy_entity) != 'on' }}"
+                          value_template: "{{ completion_entity is not none and completion_entity != '' }}"
                       sequence:
-                        - delay: !input unoccupied_delay
-                        - condition: template
-                          value_template: "{{ states(occupancy_entity) != 'on' }}"
-
-                        - action: climate.set_hvac_mode
+                        - action: input_boolean.turn_on
                           target:
-                            entity_id: !input thermostat
-                          data:
-                            hvac_mode: "off"
+                            entity_id: !input completion_helper
 
-                        - choose:
-                            - conditions:
-                                - condition: template
-                                  value_template: "{{ completion_entity is not none and completion_entity != '' }}"
-                              sequence:
-                                - action: input_boolean.turn_on
-                                  target:
-                                    entity_id: !input completion_helper
-
-                        - sequence: !input heating_stopped_actions
-                        - stop: "Occupancy cleared; HVAC turned off."
-
-                    # Reached target: use the external sensor if provided;
-                    # otherwise use the TRV's own current temperature.
-                    - conditions:
-                        - condition: template
-                          value_template: >-
-                            {{
-                              (room_sensor_used and room_now | float(-999) >= occupied_target | float)
-                              or
-                              (not room_sensor_used and trv_now | float(-999) >= occupied_target | float)
-                            }}
-                      sequence:
-                        - action: climate.set_hvac_mode
-                          target:
-                            entity_id: !input thermostat
-                          data:
-                            hvac_mode: "off"
-
-                        - choose:
-                            - conditions:
-                                - condition: template
-                                  value_template: "{{ completion_entity is not none and completion_entity != '' }}"
-                              sequence:
-                                - action: input_boolean.turn_on
-                                  target:
-                                    entity_id: !input completion_helper
-
-                        - sequence: !input heating_stopped_actions
-                        - stop: "Occupied target reached."
-
-                    # TRV caught up but the room is still below target:
-                    # increase its setpoint by one step, up to the ceiling.
-                    - conditions:
-                        - condition: template
-                          value_template: >-
-                            {{
-                              room_sensor_used
-                              and room_now | float(-999) < occupied_target | float
-                              and trv_now | float(-999)
-                                >= active_setpoint | float - rounding_tolerance | float
-                              and active_setpoint | float < device_ceiling | float
-                            }}
-                      sequence:
-                        - variables:
-                            active_setpoint: >-
-                              {{ [active_setpoint | float + step_size | float,
-                                  device_ceiling | float] | min }}
-
-                        - action: climate.set_temperature
-                          target:
-                            entity_id: !input thermostat
-                          data:
-                            temperature: "{{ active_setpoint }}"
-
-                        - choose:
-                            - conditions:
-                                - condition: template
-                                  value_template: "{{ completion_entity is not none and completion_entity != '' }}"
-                              sequence:
-                                - action: input_boolean.turn_on
-                                  target:
-                                    entity_id: !input completion_helper
-
-                    # At the ceiling, wait for the room to reach target,
-                    # occupancy to clear, or the TRV to cool below the
-                    # active setpoint before checking again.
-                    - conditions:
-                        - condition: template
-                          value_template: >-
-                            {{
-                              room_sensor_used
-                              and room_now | float(-999) < occupied_target | float
-                              and active_setpoint | float >= device_ceiling | float
-                              and trv_now | float(-999)
-                                >= active_setpoint | float - rounding_tolerance | float
-                            }}
-                      sequence:
-                        - wait_template: >-
-                            {% set trv = state_attr(thermostat_entity, 'current_temperature') | float(-999) %}
+                # Keep heating until the occupied target is reached or occupancy clears.
+                - repeat:
+                    sequence:
+                      - wait_template: >-
+                          {% set trv = state_attr(thermostat_entity, 'current_temperature') | float(-999) %}
+                          {% set room_used = room_sensor_entity is not none
+                             and room_sensor_entity != '' %}
+                          {% if room_used %}
                             {% set raw = states(room_sensor_entity) | float(-999) %}
                             {% set unit = state_attr(room_sensor_entity, 'unit_of_measurement') %}
                             {% if is_fahrenheit and unit in ['°C', 'C'] %}
@@ -338,28 +195,200 @@ action:
                             {{
                               states(occupancy_entity) != 'on'
                               or room >= occupied_target | float
-                              or trv < active_setpoint | float - rounding_tolerance | float
+                              or trv >= active_setpoint | float - rounding_tolerance | float
                             }}
+                          {% else %}
+                            {{
+                              states(occupancy_entity) != 'on'
+                              or trv >= occupied_target | float
+                            }}
+                          {% endif %}
 
-    # Startup or an unoccupied trigger while the room is unoccupied.
-    default:
-      - delay: !input unoccupied_delay
-      - condition: template
-        value_template: "{{ states(occupancy_entity) != 'on' }}"
+                      - variables:
+                          trv_now: >-
+                            {{ state_attr(thermostat_entity, 'current_temperature') | float(-999) }}
+                          room_sensor_used: >-
+                            {{ room_sensor_entity is not none and room_sensor_entity != '' }}
+                          room_now: >-
+                            {% if room_sensor_entity is none or room_sensor_entity == '' %}
+                              -999
+                            {% else %}
+                              {% set raw = states(room_sensor_entity) | float(-999) %}
+                              {% set unit = state_attr(room_sensor_entity, 'unit_of_measurement') %}
+                              {% if is_fahrenheit and unit in ['°C', 'C'] %}
+                                {{ raw * 9 / 5 + 32 }}
+                              {% elif not is_fahrenheit and unit in ['°F', 'F'] %}
+                                {{ (raw - 32) * 5 / 9 }}
+                              {% else %}
+                                {{ raw }}
+                              {% endif %}
+                            {% endif %}
 
-      - action: climate.set_hvac_mode
-        target:
-          entity_id: !input thermostat
-        data:
-          hvac_mode: "off"
+                      # Raise setpoint when the TRV catches up but the room has not.
+                      - choose:
+                          - conditions:
+                              - condition: template
+                                value_template: >-
+                                  {{
+                                    states(occupancy_entity) == 'on'
+                                    and room_sensor_used
+                                    and room_now | float(-999) < occupied_target | float
+                                    and trv_now | float(-999)
+                                      >= active_setpoint | float - rounding_tolerance | float
+                                    and active_setpoint | float < device_ceiling | float
+                                  }}
+                            sequence:
+                              - variables:
+                                  active_setpoint: >-
+                                    {{ [active_setpoint | float + step_size | float,
+                                        device_ceiling | float] | min }}
 
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ completion_entity is not none and completion_entity != '' }}"
-            sequence:
-              - action: input_boolean.turn_on
-                target:
-                  entity_id: !input completion_helper
+                              - action: climate.set_temperature
+                                target:
+                                  entity_id: !input thermostat
+                                data:
+                                  temperature: "{{ active_setpoint }}"
 
-      - sequence: !input heating_stopped_actions
+                              - choose:
+                                  - conditions:
+                                      - condition: template
+                                        value_template: "{{ completion_entity is not none and completion_entity != '' }}"
+                                    sequence:
+                                      - action: input_boolean.turn_on
+                                        target:
+                                          entity_id: !input completion_helper
+
+                          # At the ceiling, wait for the room to reach target,
+                          # occupancy to clear, or the TRV to cool below setpoint.
+                          - conditions:
+                              - condition: template
+                                value_template: >-
+                                  {{
+                                    states(occupancy_entity) == 'on'
+                                    and room_sensor_used
+                                    and room_now | float(-999) < occupied_target | float
+                                    and active_setpoint | float >= device_ceiling | float
+                                    and trv_now | float(-999)
+                                      >= active_setpoint | float - rounding_tolerance | float
+                                  }}
+                            sequence:
+                              - wait_template: >-
+                                  {% set trv = state_attr(thermostat_entity, 'current_temperature') | float(-999) %}
+                                  {% set raw = states(room_sensor_entity) | float(-999) %}
+                                  {% set unit = state_attr(room_sensor_entity, 'unit_of_measurement') %}
+                                  {% if is_fahrenheit and unit in ['°C', 'C'] %}
+                                    {% set room = raw * 9 / 5 + 32 %}
+                                  {% elif not is_fahrenheit and unit in ['°F', 'F'] %}
+                                    {% set room = (raw - 32) * 5 / 9 %}
+                                  {% else %}
+                                    {% set room = raw %}
+                                  {% endif %}
+                                  {{
+                                    states(occupancy_entity) != 'on'
+                                    or room >= occupied_target | float
+                                    or trv < active_setpoint | float - rounding_tolerance | float
+                                  }}
+
+                    until:
+                      - condition: template
+                        value_template: >-
+                          {{
+                            states(occupancy_entity) != 'on'
+                            or (
+                              room_sensor_used
+                              and room_now | float(-999) >= occupied_target | float
+                            )
+                            or (
+                              not room_sensor_used
+                              and trv_now | float(-999) >= occupied_target | float
+                            )
+                          }}
+
+                # If still occupied, target has been reached: turn heating off,
+                # then wait until the room cools before restarting the cycle.
+                - choose:
+                    - conditions:
+                        - condition: template
+                          value_template: >-
+                            {{
+                              states(occupancy_entity) == 'on'
+                              and (
+                                (room_sensor_used and room_now | float(-999) >= occupied_target | float)
+                                or
+                                (not room_sensor_used and trv_now | float(-999) >= occupied_target | float)
+                              )
+                            }}
+                      sequence:
+                        - action: climate.set_hvac_mode
+                          target:
+                            entity_id: !input thermostat
+                          data:
+                            hvac_mode: "off"
+
+                        - choose:
+                            - conditions:
+                                - condition: template
+                                  value_template: "{{ completion_entity is not none and completion_entity != '' }}"
+                              sequence:
+                                - action: input_boolean.turn_on
+                                  target:
+                                    entity_id: !input completion_helper
+
+                        - sequence: !input heating_stopped_actions
+
+                        # Stay in this automation run while occupied. A drop below
+                        # target wakes this wait and begins a new heating cycle.
+                        - wait_template: >-
+                            {% set trv = state_attr(thermostat_entity, 'current_temperature') | float(-999) %}
+                            {% set room_used = room_sensor_entity is not none
+                               and room_sensor_entity != '' %}
+                            {% if room_used %}
+                              {% set raw = states(room_sensor_entity) | float(-999) %}
+                              {% set unit = state_attr(room_sensor_entity, 'unit_of_measurement') %}
+                              {% if is_fahrenheit and unit in ['°C', 'C'] %}
+                                {% set room = raw * 9 / 5 + 32 %}
+                              {% elif not is_fahrenheit and unit in ['°F', 'F'] %}
+                                {% set room = (raw - 32) * 5 / 9 %}
+                              {% else %}
+                                {% set room = raw %}
+                              {% endif %}
+                              {{
+                                states(occupancy_entity) != 'on'
+                                or room < occupied_target | float - rounding_tolerance | float
+                              }}
+                            {% else %}
+                              {{
+                                states(occupancy_entity) != 'on'
+                                or trv < occupied_target | float - rounding_tolerance | float
+                              }}
+                            {% endif %}
+
+            # Occupancy is off: allow the configured delay, but cancel it if
+            # occupancy returns. Then turn HVAC off and wait for occupancy.
+            default:
+              - wait_template: "{{ states(occupancy_entity) == 'on' }}"
+                timeout: !input unoccupied_delay
+                continue_on_timeout: true
+
+              - if:
+                  - condition: template
+                    value_template: "{{ states(occupancy_entity) != 'on' }}"
+                then:
+                  - action: climate.set_hvac_mode
+                    target:
+                      entity_id: !input thermostat
+                    data:
+                      hvac_mode: "off"
+
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ completion_entity is not none and completion_entity != '' }}"
+                        sequence:
+                          - action: input_boolean.turn_on
+                            target:
+                              entity_id: !input completion_helper
+
+                  - sequence: !input heating_stopped_actions
+
+                  - wait_template: "{{ states(occupancy_entity) == 'on' }}"
