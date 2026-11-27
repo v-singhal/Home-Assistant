@@ -1,26 +1,24 @@
 blueprint:
-  name: 🥶🌡️ [Thermostat] Central boiler target from active smart TRVs - Simplified
+  name: "🥶🌡️ [Thermostat] Central boiler target from SmartTRVs - Simplified"
   description: >
-    Sets a central boiler thermostat to the highest target of the selected,
-    active radiator thermostats, plus a configurable boost, capped at a
-    configurable maximum. Turns the central thermostat off when no selected
-    TRVs are active. Makes no change if a selected TRV is unknown or
-    unavailable, or an active TRV has no numeric target.
+    Controls a central boiler thermostat from up to 10 radiator thermostats.
+    Sets the central target to the highest active radiator target plus a boost,
+    capped at the configured maximum. Turns the central thermostat off when
+    all selected radiator thermostats are off.
   domain: automation
   homeassistant:
     min_version: "2024.10.0"
 
   input:
     central_thermostat:
-      name: Central boiler thermostat
-      description: Climate entity connected to the boiler.
+      name: Central thermostat
       selector:
         entity:
           domain: climate
 
     radiator_thermostats:
-      name: Radiator thermostats
-      description: Select up to 10 TRVs.
+      name: Smart radiator thermostats
+      description: Select 1 to 10 climate entities.
       default: []
       selector:
         entity:
@@ -30,7 +28,7 @@ blueprint:
     central_thermostat_boost:
       name: Central thermostat boost
       description: Offset added to the highest active TRV target.
-      default: 0
+      default: 2
       selector:
         number:
           min: 0
@@ -42,7 +40,7 @@ blueprint:
     central_thermostat_maximum_target:
       name: Central thermostat maximum target
       description: Upper cap for the target sent to the central thermostat.
-      default: 30
+      default: 25
       selector:
         number:
           min: 5
@@ -56,7 +54,7 @@ blueprint:
       description: >
         Wait this many seconds after a trigger, then evaluate the latest
         readings. Changes during the wait are coalesced.
-      default: 10
+      default: 5
       selector:
         number:
           min: 0
@@ -79,21 +77,18 @@ actions:
   - delay:
       seconds: !input debounce_delay
 
-  # These are evaluated after the delay, so the latest states are used.
   - variables:
-      central_entity: !input central_thermostat
-      selected_trvs: !input radiator_thermostats
+      central: !input central_thermostat
+      trvs: !input radiator_thermostats
       boost: !input central_thermostat_boost
       maximum_target: !input central_thermostat_maximum_target
 
   - variables:
       active_trvs: >-
-        {{ expand(selected_trvs)
-           | rejectattr('state', 'equalto', 'off')
-           | list }}
-      bad_trv_state: >-
+        {{ expand(trvs) | rejectattr('state', 'equalto', 'off') | list }}
+      invalid_trv_state: >-
         {% set ns = namespace(bad=false) %}
-        {% for entity_id in selected_trvs %}
+        {% for entity_id in trvs %}
           {% if states(entity_id) in ['unknown', 'unavailable'] %}
             {% set ns.bad = true %}
           {% endif %}
@@ -101,74 +96,73 @@ actions:
         {{ ns.bad }}
 
   - variables:
-      missing_active_target: >-
-        {% set ns = namespace(missing=false) %}
+      invalid_target: >-
+        {% set ns = namespace(bad=false) %}
         {% for trv in active_trvs %}
           {% if not is_number(trv.attributes.get('temperature')) %}
-            {% set ns.missing = true %}
+            {% set ns.bad = true %}
           {% endif %}
         {% endfor %}
-        {{ ns.missing }}
-      highest_active_target: >-
-        {% set ns = namespace(maximum=none) %}
+        {{ ns.bad }}
+      highest_target: >-
+        {% set ns = namespace(value=none) %}
         {% for trv in active_trvs %}
           {% set target = trv.attributes.get('temperature') %}
           {% if is_number(target) %}
             {% set target = target | float %}
-            {% if ns.maximum is none or target > ns.maximum %}
-              {% set ns.maximum = target %}
+            {% if ns.value is none or target > ns.value %}
+              {% set ns.value = target %}
             {% endif %}
           {% endif %}
         {% endfor %}
-        {{ ns.maximum if ns.maximum is not none else 0 }}
+        {{ ns.value if ns.value is not none else 0 }}
 
   - variables:
-      requested_target: >-
+      target_to_send: >-
         {{ [
-          (highest_active_target | float) + (boost | float),
+          (highest_target | float) + (boost | float),
           maximum_target | float
         ] | min | round(1) }}
 
   - choose:
-      # No active TRVs: turn the central thermostat off, unless a selected
-      # TRV is unavailable or unknown—in that case, leave it unchanged.
       - conditions:
           - condition: template
             value_template: >-
-              {{ (bad_trv_state | string | trim | lower) != 'true'
+              {{ trvs | count <= 10
+                 and (invalid_trv_state | string | trim | lower) != 'true'
                  and active_trvs | count == 0 }}
         sequence:
           - if:
               - condition: template
-                value_template: "{{ states(central_entity) != 'off' }}"
+                value_template: "{{ states(central) != 'off' }}"
             then:
               - action: climate.set_hvac_mode
                 target:
-                  entity_id: "{{ central_entity }}"
+                  entity_id: "{{ central }}"
                 data:
                   hvac_mode: "off"
 
-      # Active TRVs with valid targets: heat and set the capped target.
       - conditions:
           - condition: template
             value_template: >-
-              {{ (bad_trv_state | string | trim | lower) != 'true'
-                 and (missing_active_target | string | trim | lower) != 'true'
+              {{ trvs | count <= 10
+                 and (invalid_trv_state | string | trim | lower) != 'true'
+                 and (invalid_target | string | trim | lower) != 'true'
                  and active_trvs | count > 0 }}
         sequence:
           - if:
               - condition: template
                 value_template: >-
-                  {% set current = state_attr(central_entity, 'temperature') %}
-                  {{ states(central_entity) != 'heat'
+                  {% set current = state_attr(central, 'temperature') %}
+                  {{ states(central) != 'heat'
                      or not is_number(current)
-                     or ((current | float) - (requested_target | float)) | abs > 0.05 }}
+                     or ((current | float) - (target_to_send | float)) | abs > 0.05 }}
             then:
               - action: climate.set_temperature
                 target:
-                  entity_id: "{{ central_entity }}"
+                  entity_id: "{{ central }}"
                 data:
-                  temperature: "{{ requested_target }}"
+                  temperature: "{{ target_to_send }}"
                   hvac_mode: "heat"
 
 mode: single
