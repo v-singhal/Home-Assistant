@@ -1,5 +1,5 @@
 blueprint:
-  name: 🥶🌡️ [Thermostat] Central boiler target from active smart TRVs
+  name: 🥶🌡️ [Thermostat] Central boiler target from active smart TRVs - Simplified
   description: >
     Sets a central boiler thermostat to the highest target of the selected,
     active radiator thermostats, plus a configurable boost, capped at a
